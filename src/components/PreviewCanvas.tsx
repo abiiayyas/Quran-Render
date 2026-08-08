@@ -97,9 +97,17 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
         </div>
 
         {/* Logo Watermark Layer */}
-        {customization.showLogo && (
+        {customization.watermarkType !== 'none' && (
           <div className="absolute top-12 left-0 right-0 flex justify-center opacity-80 z-20">
-            <div className="text-white text-3xl font-bold drop-shadow-xl bg-black/30 px-6 py-2 rounded-xl border border-white/20">Quran Render</div>
+            {customization.watermarkType === 'text' ? (
+              <div className="text-white text-3xl font-bold drop-shadow-xl bg-black/30 px-6 py-2 rounded-xl border border-white/20">
+                {customization.watermarkText}
+              </div>
+            ) : (
+              customization.watermarkImage && (
+                <img src={convertFileSrc(customization.watermarkImage)} alt="Watermark" className="h-24 drop-shadow-xl" />
+              )
+            )}
           </div>
         )}
 

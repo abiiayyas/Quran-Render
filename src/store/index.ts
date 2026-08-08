@@ -64,7 +64,9 @@ interface AppState {
     thumbnailPath: string | null;
     highlightWordIndex: number | null;
     fontFamily: string;
-    showLogo: boolean;
+    watermarkType: 'none' | 'text' | 'image';
+    watermarkText: string;
+    watermarkImage: string | null;
   };
   updateCustomization: (newCust: Partial<AppState['customization']>) => void;
   clearProject: () => void;
@@ -82,13 +84,13 @@ export const useAppStore = create<AppState>((set) => ({
       newQ[existingIdx] = { ...newQ[existingIdx], status: updatedJob.status, progress: updatedJob.progress, error: updatedJob.error };
       return { renderQueue: newQ };
     } else {
-      // Just in case we missed the insertion, we could append it, but we usually push to renderQueue first.
       return { renderQueue: [...state.renderQueue, {
         id: updatedJob.job_id,
         title: `Job ${updatedJob.job_id}`,
         status: updatedJob.status,
         progress: updatedJob.progress,
-        error: updatedJob.error
+        error: updatedJob.error,
+        jobData: updatedJob.jobData // Added job data for pending queue
       }] };
     }
   }),
@@ -157,7 +159,9 @@ export const useAppStore = create<AppState>((set) => ({
     thumbnailPath: null,
     highlightWordIndex: null,
     fontFamily: 'Uthmanic',
-    showLogo: true,
+    watermarkType: 'none',
+    watermarkText: 'Quran Render',
+    watermarkImage: null,
   },
   updateCustomization: (newCust) => set((state) => ({
     customization: { ...state.customization, ...newCust }
@@ -175,7 +179,9 @@ export const useAppStore = create<AppState>((set) => ({
       thumbnailPath: null,
       highlightWordIndex: null,
       fontFamily: 'Uthmanic',
-      showLogo: true,
+      watermarkType: 'none',
+      watermarkText: 'Quran Render',
+      watermarkImage: null,
     }
   })
 }));

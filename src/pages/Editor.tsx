@@ -200,11 +200,16 @@ export const Editor: React.FC = () => {
         cumulativeAudioDurationMs += verse.audioDurationMs || 0;
       }
       
+      const jobId = `job_${Date.now()}`;
       const outputPath = `${dir}/quran_project_${Date.now()}.mp4`;
 
-      await invoke('enqueue_render', {
-        job: {
-          id: `job_${Date.now()}`,
+      store.updateRenderJob({
+        job_id: jobId,
+        status: 'pending',
+        progress: 0,
+        error: null,
+        jobData: {
+          id: jobId,
           title: `Render Project (${store.slides.length} slides)`,
           audio_paths: audioPaths,
           bg_path: store.bgPath,
@@ -215,7 +220,7 @@ export const Editor: React.FC = () => {
         }
       });
       
-      alert(`Render job added to queue!`);
+      alert(`Render job added to queue! Head over to the Render Queue tab to process it.`);
     } catch (err) {
       console.error(err);
       alert(`Render failed: ${err}`);
@@ -425,17 +430,47 @@ export const Editor: React.FC = () => {
                 </select>
               </div>
 
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600">
-                <span className="text-sm text-gray-300">Show Logo Watermark</span>
-                <label className="relative inline-flex items-center cursor-pointer">
+              <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-gray-600">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-300">Watermark</span>
+                  <select 
+                    value={store.customization.watermarkType}
+                    onChange={e => store.updateCustomization({ watermarkType: e.target.value as any })}
+                    className="bg-gray-900 border border-gray-600 rounded text-white text-xs px-2 py-1"
+                  >
+                    <option value="none">None</option>
+                    <option value="text">Text</option>
+                    <option value="image">Image (PNG)</option>
+                  </select>
+                </div>
+                {store.customization.watermarkType === 'text' && (
                   <input 
-                    type="checkbox" 
-                    className="sr-only peer" 
-                    checked={store.customization.showLogo}
-                    onChange={e => store.updateCustomization({ showLogo: e.target.checked })}
+                    type="text" 
+                    value={store.customization.watermarkText} 
+                    onChange={e => store.updateCustomization({ watermarkText: e.target.value })}
+                    className="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+                    placeholder="Enter watermark text"
                   />
-                  <div className="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
+                )}
+                {store.customization.watermarkType === 'image' && (
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={async () => {
+                        const { open } = await import('@tauri-apps/plugin-dialog');
+                        const selected = await open({ filters: [{ name: 'Image', extensions: ['png'] }], multiple: false });
+                        if (selected && typeof selected === 'string') {
+                          store.updateCustomization({ watermarkImage: selected });
+                        }
+                      }}
+                      className="bg-gray-700 hover:bg-gray-600 text-xs px-2 py-1 rounded text-white"
+                    >
+                      Browse Logo...
+                    </button>
+                    <span className="text-xs text-gray-400 truncate flex-1">
+                      {store.customization.watermarkImage ? store.customization.watermarkImage.split(/[\\/]/).pop() : 'No image selected'}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600">
@@ -490,7 +525,15 @@ export const Editor: React.FC = () => {
           </div>
           <div className="space-x-2">
             <button onClick={() => store.clearProject()} className="bg-red-700 hover:bg-red-600 px-4 py-2 rounded transition text-white text-sm">Clear</button>
-            <button className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded transition text-white">Save</button>
+            <button onClick={async () => {
+              try {
+                const { saveProject } = await import('../utils/project');
+                await saveProject();
+                alert('Project saved successfully!');
+              } catch (e) {
+                alert('Failed to save project');
+              }
+            }} className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded transition text-white">Save</button>
             <button onClick={handleGenerate} disabled={loading} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition font-medium text-white disabled:opacity-50">
               {loading ? 'Processing...' : 'Add to Queue'}
             </button>

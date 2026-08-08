@@ -241,17 +241,6 @@ export const Editor: React.FC = () => {
                   <div className="w-7 h-4 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
                 </label>
               </div>
-              {useQuranApi && (
-                <select 
-                  value={reciterId} 
-                  onChange={e => setReciterId(e.target.value)}
-                  className="text-xs bg-gray-900 border border-gray-600 rounded text-white px-2 py-1 max-w-[150px] truncate"
-                >
-                  {RECITER_LIST.map(r => (
-                    <option key={r.id} value={r.id.toString()}>{r.name} ({r.style})</option>
-                  ))}
-                </select>
-              )}
             </div>
             
             <div className="bg-gray-700 p-3 rounded">
@@ -275,6 +264,18 @@ export const Editor: React.FC = () => {
                       >
                         {SURAH_LIST.map(s => (
                           <option key={s.id} value={s.id.toString()}>{s.id}. {s.name} ({s.trans})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="w-full">
+                      <label className="block text-xs text-gray-400 mb-1">Qari (Reciter)</label>
+                      <select 
+                        value={reciterId} 
+                        onChange={e => setReciterId(e.target.value)}
+                        className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm"
+                      >
+                        {RECITER_LIST.map(r => (
+                          <option key={r.id} value={r.id.toString()}>{r.name} ({r.style})</option>
                         ))}
                       </select>
                     </div>

@@ -169,8 +169,8 @@ export const Editor: React.FC = () => {
               
               overlaySequence.push({
                 base64: frameDataUrl.replace(/^data:image\/png;base64,/, ""),
-                start_ms: cumulativeAudioDurationMs + word.start_ms,
-                end_ms: cumulativeAudioDurationMs + word.end_ms
+                start_ms: Math.round(cumulativeAudioDurationMs + (word.start_ms || 0)),
+                end_ms: Math.round(cumulativeAudioDurationMs + (word.end_ms || verse.audioDurationMs || 5000))
               });
             }
             store.updateCustomization({ highlightWordIndex: null });
@@ -191,8 +191,8 @@ export const Editor: React.FC = () => {
              
              overlaySequence.push({
                 base64: frameDataUrl.replace(/^data:image\/png;base64,/, ""),
-                start_ms: cumulativeAudioDurationMs + startMs,
-                end_ms: cumulativeAudioDurationMs + endMs
+                start_ms: Math.round(cumulativeAudioDurationMs + startMs),
+                end_ms: Math.round(cumulativeAudioDurationMs + endMs)
              });
           }
         }

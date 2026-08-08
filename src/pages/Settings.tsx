@@ -42,9 +42,9 @@ export const Settings: React.FC = () => {
                 onChange={(e) => updateSettings({ font: e.target.value })}
                 className="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white"
               >
-                <option value="amiri">Amiri (Default)</option>
-                <option value="uthmanic">KFGQPC Uthmanic Script HAFS</option>
-                <option value="lateef">Lateef</option>
+                <option value="Uthmanic">Uthmanic (Hafs)</option>
+                <option value="LPMQ">LPMQ (Kemenag)</option>
+                <option value="amiri">Amiri</option>
               </select>
             </div>
             

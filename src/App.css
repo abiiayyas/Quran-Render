@@ -7,3 +7,17 @@
     @apply bg-gray-900 text-gray-100 font-sans antialiased;
   }
 }
+
+@font-face {
+  font-family: 'LPMQ';
+  src: url('/fonts/LPMQ.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Uthmanic';
+  src: url('/fonts/Uthmanic.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}

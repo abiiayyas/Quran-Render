@@ -412,6 +412,32 @@ export const Editor: React.FC = () => {
                 />
               </div>
 
+              <div className="flex items-center justify-between pt-2 border-t border-gray-600">
+                <span className="text-sm text-gray-300">Arabic Font</span>
+                <select 
+                  value={store.customization.fontFamily}
+                  onChange={e => store.updateCustomization({ fontFamily: e.target.value })}
+                  className="bg-gray-900 border border-gray-600 rounded text-white text-xs px-2 py-1"
+                >
+                  <option value="Uthmanic">Uthmanic (Hafs)</option>
+                  <option value="LPMQ">LPMQ (Kemenag)</option>
+                  <option value="amiri">Amiri</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600">
+                <span className="text-sm text-gray-300">Show Logo Watermark</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer" 
+                    checked={store.customization.showLogo}
+                    onChange={e => store.updateCustomization({ showLogo: e.target.checked })}
+                  />
+                  <div className="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600">
                 <span className="text-sm text-gray-300">Karaoke Mode</span>
                 <label className="relative inline-flex items-center cursor-pointer">

@@ -8,7 +8,8 @@ export interface PreviewCanvasHandle extends HTMLDivElement {
 }
 
 export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
-  const { verses, slides, activeSlideId, settings, bgPath, audioPath, customization } = useAppStore();
+  const { verses, slides, activeSlideId, bgPath, audioPath } = useAppStore();
+  const customization = useAppStore(state => state.customization);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -60,8 +61,8 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
 
   const fontMap: Record<string, string> = {
     'amiri': 'Amiri, serif',
-    'uthmanic': '"KFGQPC Uthmanic Script HAFS", serif',
-    'lateef': 'Lateef, serif'
+    'Uthmanic': 'Uthmanic, serif',
+    'LPMQ': 'LPMQ, serif'
   };
 
   // Convert percentage slider to actual CSS values
@@ -95,6 +96,13 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
           {currentAudioPath && <audio ref={audioRef} src={convertFileSrc(currentAudioPath)} />}
         </div>
 
+        {/* Logo Watermark Layer */}
+        {customization.showLogo && (
+          <div className="absolute top-12 left-0 right-0 flex justify-center opacity-80 z-20">
+            <div className="text-white text-3xl font-bold drop-shadow-xl bg-black/30 px-6 py-2 rounded-xl border border-white/20">Quran Render</div>
+          </div>
+        )}
+
         {/* Text Overlay Layer */}
         {verse ? (
           <div 
@@ -104,7 +112,7 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
             <div 
               dir="rtl" 
               className="text-white font-bold leading-tight text-center w-full flex justify-center flex-wrap gap-x-4" 
-              style={{ fontFamily: fontMap[settings.font] || 'Amiri, serif', fontSize: arabicFontSize, textShadow: '0px 4px 12px rgba(0,0,0,0.8)' }}
+              style={{ fontFamily: fontMap[customization.fontFamily] || 'Uthmanic, serif', fontSize: arabicFontSize, textShadow: '0px 4px 12px rgba(0,0,0,0.8)' }}
             >
               {customization.karaokeMode && displayWords.length > 0 ? (
                 displayWords.map((word, index) => {

@@ -63,6 +63,8 @@ interface AppState {
     karaokeMode: boolean;
     thumbnailPath: string | null;
     highlightWordIndex: number | null;
+    fontFamily: string;
+    showLogo: boolean;
   };
   updateCustomization: (newCust: Partial<AppState['customization']>) => void;
   clearProject: () => void;
@@ -153,7 +155,9 @@ export const useAppStore = create<AppState>((set) => ({
     textPositionY: 50, // percentage (50 = center)
     karaokeMode: false,
     thumbnailPath: null,
-    highlightWordIndex: null
+    highlightWordIndex: null,
+    fontFamily: 'Uthmanic',
+    showLogo: true,
   },
   updateCustomization: (newCust) => set((state) => ({
     customization: { ...state.customization, ...newCust }
@@ -169,7 +173,9 @@ export const useAppStore = create<AppState>((set) => ({
       textPositionY: 50,
       karaokeMode: false,
       thumbnailPath: null,
-      highlightWordIndex: null
+      highlightWordIndex: null,
+      fontFamily: 'Uthmanic',
+      showLogo: true,
     }
   })
 }));

@@ -101,10 +101,6 @@ pub async fn fetch_quran_verses(state: State<'_, AppState>, surah: u32, ayat_sta
     // Check cache first (skipping cache for now to ensure we get words)
     // We can re-enable cache later if words_json is populated
 
-    // Fetch from API
-    let url = format!("https://api.quran.com/api/v4/verses/by_chapter/{}?language=id&words=true&word_fields=text_uthmani&audio={}&translations=33&fields=text_uthmani", surah, reciter_id);
-    let response = reqwest::get(&url).await.map_err(|e| e.to_string())?;
-    
     #[derive(Deserialize)]
     struct TranslationObj {
         text: String,
@@ -133,15 +129,24 @@ pub async fn fetch_quran_verses(state: State<'_, AppState>, surah: u32, ayat_sta
         verses: Vec<VerseObj>,
     }
 
-    let api_data: ApiResponse = response.json().await.map_err(|e| e.to_string())?;
-    
-    let mut fetched_results = Vec::new();
-    let db = state.db.lock().unwrap();
+    let mut fetched_results: Vec<QuranAyah> = Vec::new();
     
     // Attempt to add words_json column if missing (ignore error)
-    let _ = db.execute("ALTER TABLE quran_cache ADD COLUMN words_json TEXT", []);
+    {
+        let db = state.db.lock().unwrap();
+        let _ = db.execute("ALTER TABLE quran_cache ADD COLUMN words_json TEXT", []);
+    }
 
-    for v in api_data.verses {
+    let start_page = (ayat_start.saturating_sub(1)) / 50 + 1;
+    let end_page = (ayat_end.saturating_sub(1)) / 50 + 1;
+
+    for page in start_page..=end_page {
+        let url = format!("https://api.quran.com/api/v4/verses/by_chapter/{}?language=id&words=true&word_fields=text_uthmani&audio={}&translations=33&fields=text_uthmani&page={}&per_page=50", surah, reciter_id, page);
+        let response = reqwest::get(&url).await.map_err(|e| e.to_string())?;
+        
+        let api_data: ApiResponse = response.json().await.map_err(|e| e.to_string())?;
+
+        for v in api_data.verses {
         if v.verse_number < ayat_start || v.verse_number > ayat_end {
             continue;
         }
@@ -183,18 +188,22 @@ pub async fn fetch_quran_verses(state: State<'_, AppState>, surah: u32, ayat_sta
         let words_json = serde_json::to_string(&words).unwrap_or_default();
 
         // Save to cache
-        let _ = db.execute(
-            "INSERT OR REPLACE INTO quran_cache (surah, ayah, arabic, translation, words_json) VALUES (?1, ?2, ?3, ?4, ?5)",
-            (surah, v.verse_number, &v.text_uthmani, &translation, &words_json),
-        );
+        {
+            let db = state.db.lock().unwrap();
+            let _ = db.execute(
+                "INSERT OR REPLACE INTO quran_cache (surah, ayah, arabic, translation, words_json) VALUES (?1, ?2, ?3, ?4, ?5)",
+                (surah, v.verse_number, &v.text_uthmani, &translation, &words_json),
+            );
+        }
         
-        fetched_results.push(QuranAyah {
-            surah,
-            ayah: v.verse_number,
-            arabic: v.text_uthmani.clone(),
-            translation: translation.clone(),
-            words,
-        });
+            fetched_results.push(QuranAyah {
+                surah,
+                ayah: v.verse_number,
+                arabic: v.text_uthmani.clone(),
+                translation: translation.clone(),
+                words,
+            });
+        }
     }
 
     Ok(fetched_results)

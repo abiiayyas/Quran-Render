@@ -31,6 +31,18 @@ export const Editor: React.FC = () => {
       words: []
     }]);
   };
+
+  const handleAddManualText = () => {
+    store.addVerse({
+      surah: store.verses.length + 1,
+      ayah: store.verses.length + 1,
+      arabic: manualArabic || 'بسم الله الرحمن الرحيم',
+      translation: manualTranslation || 'Dengan menyebut nama Allah Yang Maha Pengasih lagi Maha Penyayang.',
+      words: []
+    });
+    setManualArabic('');
+    setManualTranslation('');
+  };
   const handleFetchAyat = async () => {
     try {
       setLoading(true);
@@ -323,9 +335,14 @@ export const Editor: React.FC = () => {
                     <label className="block text-xs text-gray-400 mb-1">Terjemahan (Manual)</label>
                     <textarea value={manualTranslation} onChange={e => setManualTranslation(e.target.value)} className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" rows={2} placeholder="Terjemahan..." />
                   </div>
-                  <button onClick={handleSetManualText} className="w-full bg-green-600 hover:bg-green-700 py-2 rounded text-white font-medium transition">
-                    Set Text
-                  </button>
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={handleSetManualText} className="w-1/2 bg-red-600 hover:bg-red-700 py-2 rounded text-white font-medium transition text-sm">
+                      Ganti Semua
+                    </button>
+                    <button onClick={handleAddManualText} className="w-1/2 bg-green-600 hover:bg-green-700 py-2 rounded text-white font-medium transition text-sm">
+                      Tambah Scene Baru
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

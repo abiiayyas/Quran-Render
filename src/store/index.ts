@@ -80,6 +80,7 @@ interface AppState {
   };
   updateCustomization: (newCust: Partial<AppState['customization']>) => void;
   clearProject: () => void;
+  addVerse: (verse: QuranAyah) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -122,6 +123,16 @@ export const useAppStore = create<AppState>((set) => ({
     }));
     set({ verses, slides });
   },
+  addVerse: (verse) => set((state) => {
+    const newVerses = [...state.verses, verse];
+    const newSlide = {
+      id: `slide_${state.verses.length}_${Date.now()}`,
+      verseIndex: state.verses.length,
+      wordStartIndex: 0,
+      wordEndIndex: verse.words ? verse.words.length : 0
+    };
+    return { verses: newVerses, slides: [...state.slides, newSlide] };
+  }),
   updateVerseAudio: (index, path, durationMs) => set((state) => {
     const newVerses = [...state.verses];
     if (newVerses[index]) {

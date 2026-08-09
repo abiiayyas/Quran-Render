@@ -119,6 +119,7 @@ export const Editor: React.FC = () => {
 
     try {
       setLoading(true);
+      store.setIsExporting(true);
       
       const dir = store.settings.outputDir.replace(/\/$/, '');
       
@@ -226,6 +227,7 @@ export const Editor: React.FC = () => {
       alert(`Render failed: ${err}`);
     } finally {
       setLoading(false);
+      store.setIsExporting(false);
     }
   };
 
@@ -391,43 +393,112 @@ export const Editor: React.FC = () => {
           <section>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-400 mb-2">Customize</h3>
             <div className="bg-gray-700 p-4 rounded space-y-4">
-              <div>
-                <div className="flex justify-between text-sm text-gray-300 mb-1">
-                  <span>Text Size</span>
-                  <span>{store.customization.textSize}%</span>
+              {/* Arabic Settings */}
+              <div className="pt-2">
+                <h4 className="text-xs font-semibold text-gray-400 mb-2 uppercase">Arabic Text</h4>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-gray-300">Font</span>
+                    <select 
+                      value={store.customization.arabicFontFamily}
+                      onChange={e => store.updateCustomization({ arabicFontFamily: e.target.value })}
+                      className="bg-gray-900 border border-gray-600 rounded text-white text-xs p-1"
+                    >
+                      <option value="Uthmanic">Uthmanic (Hafs)</option>
+                      <option value="LPMQ">LPMQ (Kemenag)</option>
+                      <option value="amiri">Amiri</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-gray-300">Color</span>
+                    <input type="color" value={store.customization.arabicColor} onChange={e => store.updateCustomization({ arabicColor: e.target.value })} className="w-full h-[26px] bg-transparent border-0 cursor-pointer rounded" />
+                  </div>
+                </div>
+                <div className="flex justify-between text-xs text-gray-300 mb-1">
+                  <span>Size</span>
+                  <span>{store.customization.arabicTextSize}%</span>
                 </div>
                 <input 
-                  type="range" min="50" max="200" 
-                  value={store.customization.textSize} 
-                  onChange={e => store.updateCustomization({ textSize: parseInt(e.target.value) })}
-                  className="w-full"
+                  type="range" min="50" max="250" 
+                  value={store.customization.arabicTextSize} 
+                  onChange={e => store.updateCustomization({ arabicTextSize: parseInt(e.target.value) })}
+                  className="w-full h-1"
                 />
               </div>
-              
-              <div>
+
+              {/* Translation Settings */}
+              <div className="pt-2 border-t border-gray-600 mt-2">
+                <h4 className="text-xs font-semibold text-gray-400 mb-2 uppercase">Translation Text</h4>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-gray-300">Font</span>
+                    <select 
+                      value={store.customization.translationFontFamily}
+                      onChange={e => store.updateCustomization({ translationFontFamily: e.target.value })}
+                      className="bg-gray-900 border border-gray-600 rounded text-white text-xs p-1"
+                    >
+                      <option value="sans-serif">Sans Serif</option>
+                      <option value="serif">Serif</option>
+                      <option value="monospace">Monospace</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-gray-300">Color</span>
+                    <input type="color" value={store.customization.translationColor} onChange={e => store.updateCustomization({ translationColor: e.target.value })} className="w-full h-[26px] bg-transparent border-0 cursor-pointer rounded" />
+                  </div>
+                </div>
+                <div className="flex justify-between text-xs text-gray-300 mb-1">
+                  <span>Size</span>
+                  <span>{store.customization.translationTextSize}%</span>
+                </div>
+                <input 
+                  type="range" min="50" max="250" 
+                  value={store.customization.translationTextSize} 
+                  onChange={e => store.updateCustomization({ translationTextSize: parseInt(e.target.value) })}
+                  className="w-full h-1"
+                />
+                
+                <div className="flex flex-col gap-2 mt-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-300">Background Box</span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={store.customization.translationBackground}
+                        onChange={e => store.updateCustomization({ translationBackground: e.target.checked })}
+                      />
+                      <div className="w-7 h-4 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-300">Show Separator</span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={store.customization.showSeparator}
+                        onChange={e => store.updateCustomization({ showSeparator: e.target.checked })}
+                      />
+                      <div className="w-7 h-4 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Position */}
+              <div className="pt-2 border-t border-gray-600 mt-2">
                 <div className="flex justify-between text-sm text-gray-300 mb-1">
-                  <span>Y Position</span>
+                  <span>Global Y Position</span>
                   <span>{store.customization.textPositionY}%</span>
                 </div>
                 <input 
                   type="range" min="0" max="100" 
                   value={store.customization.textPositionY} 
                   onChange={e => store.updateCustomization({ textPositionY: parseInt(e.target.value) })}
-                  className="w-full"
+                  className="w-full h-1"
                 />
-              </div>
-
-              <div className="flex items-center justify-between pt-2 border-t border-gray-600">
-                <span className="text-sm text-gray-300">Arabic Font</span>
-                <select 
-                  value={store.customization.fontFamily}
-                  onChange={e => store.updateCustomization({ fontFamily: e.target.value })}
-                  className="bg-gray-900 border border-gray-600 rounded text-white text-xs px-2 py-1"
-                >
-                  <option value="Uthmanic">Uthmanic (Hafs)</option>
-                  <option value="LPMQ">LPMQ (Kemenag)</option>
-                  <option value="amiri">Amiri</option>
-                </select>
               </div>
 
               <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-gray-600">
@@ -471,19 +542,49 @@ export const Editor: React.FC = () => {
                     </span>
                   </div>
                 )}
+                
+                {store.customization.watermarkType !== 'none' && (
+                  <div className="mt-2">
+                    <div className="flex justify-between text-xs text-gray-400 mb-1">
+                      <span>Watermark Y Pos</span>
+                      <span>{store.customization.watermarkPositionY}%</span>
+                    </div>
+                    <input 
+                      type="range" min="0" max="100" 
+                      value={store.customization.watermarkPositionY} 
+                      onChange={e => store.updateCustomization({ watermarkPositionY: parseInt(e.target.value) })}
+                      className="w-full h-1"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600">
                 <span className="text-sm text-gray-300">Karaoke Mode</span>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    className="sr-only peer" 
-                    checked={store.customization.karaokeMode}
-                    onChange={e => store.updateCustomization({ karaokeMode: e.target.checked })}
-                  />
-                  <div className="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
+                <div className="flex items-center gap-4">
+                  {store.customization.karaokeMode && (
+                    <select 
+                      value={store.customization.karaokeStyle}
+                      onChange={e => store.updateCustomization({ karaokeStyle: e.target.value })}
+                      className="bg-gray-900 border border-gray-600 rounded text-white text-xs px-2 py-1"
+                    >
+                      <option value="pop">Pop (Yellow)</option>
+                      <option value="hormozi">Hormozi (Green)</option>
+                      <option value="neon">Neon Glow</option>
+                      <option value="punch">Word Punch</option>
+                      <option value="tiktok">TikTok Bold</option>
+                    </select>
+                  )}
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer" 
+                      checked={store.customization.karaokeMode}
+                      onChange={e => store.updateCustomization({ karaokeMode: e.target.checked })}
+                    />
+                    <div className="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
               </div>
             </div>
           </section>

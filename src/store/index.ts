@@ -25,6 +25,8 @@ export interface Slide {
 interface AppState {
   currentProject: any | null;
   setCurrentProject: (project: any) => void;
+  isExporting: boolean;
+  setIsExporting: (isExporting: boolean) => void;
   
   renderQueue: any[];
   setRenderQueue: (queue: any[]) => void;
@@ -58,21 +60,31 @@ interface AppState {
   updateSettings: (newSettings: Partial<AppState['settings']>) => void;
 
   customization: {
-    textSize: number;
+    arabicTextSize: number;
+    arabicFontFamily: string;
+    arabicColor: string;
+    translationTextSize: number;
+    translationFontFamily: string;
+    translationColor: string;
+    translationBackground: boolean;
+    showSeparator: boolean;
     textPositionY: number;
     karaokeMode: boolean;
+    karaokeStyle: string;
     thumbnailPath: string | null;
     highlightWordIndex: number | null;
-    fontFamily: string;
     watermarkType: 'none' | 'text' | 'image';
     watermarkText: string;
     watermarkImage: string | null;
+    watermarkPositionY: number;
   };
   updateCustomization: (newCust: Partial<AppState['customization']>) => void;
   clearProject: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
+  isExporting: false,
+  setIsExporting: (isExporting) => set({ isExporting }),
   currentProject: null,
   setCurrentProject: (project) => set({ currentProject: project }),
   renderQueue: [],
@@ -153,15 +165,23 @@ export const useAppStore = create<AppState>((set) => ({
   })),
 
   customization: {
-    textSize: 100, // percentage
+    arabicTextSize: 100,
+    arabicFontFamily: 'Uthmanic',
+    arabicColor: '#ffffff',
+    translationTextSize: 100,
+    translationFontFamily: 'sans-serif',
+    translationColor: '#ffffff',
+    translationBackground: true,
+    showSeparator: false,
     textPositionY: 50, // percentage (50 = center)
     karaokeMode: false,
+    karaokeStyle: 'pop',
     thumbnailPath: null,
     highlightWordIndex: null,
-    fontFamily: 'Uthmanic',
     watermarkType: 'none',
     watermarkText: 'Quran Render',
     watermarkImage: null,
+    watermarkPositionY: 12,
   },
   updateCustomization: (newCust) => set((state) => ({
     customization: { ...state.customization, ...newCust }
@@ -173,15 +193,23 @@ export const useAppStore = create<AppState>((set) => ({
     slides: [],
     activeSlideId: null,
     customization: {
-      textSize: 100,
+      arabicTextSize: 100,
+      arabicFontFamily: 'Uthmanic',
+      arabicColor: '#ffffff',
+      translationTextSize: 100,
+      translationFontFamily: 'sans-serif',
+      translationColor: '#ffffff',
+      translationBackground: true,
+      showSeparator: false,
       textPositionY: 50,
       karaokeMode: false,
+      karaokeStyle: 'pop',
       thumbnailPath: null,
       highlightWordIndex: null,
-      fontFamily: 'Uthmanic',
       watermarkType: 'none',
       watermarkText: 'Quran Render',
       watermarkImage: null,
+      watermarkPositionY: 12,
     }
   })
 }));

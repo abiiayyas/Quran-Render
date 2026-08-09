@@ -8,7 +8,7 @@ export interface PreviewCanvasHandle extends HTMLDivElement {
 }
 
 export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
-  const { verses, slides, activeSlideId, bgPath, audioPath } = useAppStore();
+  const { verses, slides, activeSlideId, bgPath, audioPath, isExporting } = useAppStore();
   const customization = useAppStore(state => state.customization);
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -62,13 +62,17 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
   const fontMap: Record<string, string> = {
     'amiri': 'Amiri, serif',
     'Uthmanic': 'Uthmanic, serif',
-    'LPMQ': 'LPMQ, serif'
+    'LPMQ': 'LPMQ, serif',
+    'sans-serif': 'sans-serif',
+    'serif': 'serif',
+    'monospace': 'monospace'
   };
 
   // Convert percentage slider to actual CSS values
-  const fontSizeFactor = customization.textSize / 100;
-  const arabicFontSize = `${5 * fontSizeFactor}rem`; // base 5rem (was text-7xl)
-  const transFontSize = `${2.25 * fontSizeFactor}rem`; // base 2.25rem (was text-4xl)
+  const arabicFontSizeFactor = customization.arabicTextSize / 100;
+  const translationFontSizeFactor = customization.translationTextSize / 100;
+  const arabicFontSize = `${5 * arabicFontSizeFactor}rem`; // base 5rem (was text-7xl)
+  const transFontSize = `${2.25 * translationFontSizeFactor}rem`; // base 2.25rem (was text-4xl)
 
   // Map 0-100% to absolute top position
   const topPosition = `${customization.textPositionY}%`;
@@ -98,7 +102,10 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
 
         {/* Logo Watermark Layer */}
         {customization.watermarkType !== 'none' && (
-          <div className="absolute top-12 left-0 right-0 flex justify-center opacity-80 z-20">
+          <div 
+            className="absolute left-0 right-0 flex justify-center opacity-80 z-20"
+            style={{ top: `${customization.watermarkPositionY}%` }}
+          >
             {customization.watermarkType === 'text' ? (
               <div className="text-white text-3xl font-bold drop-shadow-xl bg-black/30 px-6 py-2 rounded-xl border border-white/20">
                 {customization.watermarkText}
@@ -119,18 +126,59 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
           >
             <div 
               dir="rtl" 
-              className="text-white font-bold leading-tight text-center w-full flex justify-center flex-wrap gap-x-4" 
-              style={{ fontFamily: fontMap[customization.fontFamily] || 'Uthmanic, serif', fontSize: arabicFontSize, textShadow: '0px 4px 12px rgba(0,0,0,0.8)' }}
+              className="font-bold leading-tight text-center w-full flex justify-center flex-wrap gap-x-4" 
+              style={{ fontFamily: fontMap[customization.arabicFontFamily] || 'Uthmanic, serif', fontSize: arabicFontSize, textShadow: '0px 4px 12px rgba(0,0,0,0.8)' }}
             >
               {customization.karaokeMode && displayWords.length > 0 ? (
                 displayWords.map((word, index) => {
                   const isHighlighted = customization.highlightWordIndex === index;
+                  let color = customization.arabicColor;
+                  let backgroundColor = 'transparent';
+                  let padding = '0';
+                  let borderRadius = '0';
+                  let textShadow = '0px 4px 12px rgba(0,0,0,0.8)';
+                  let scale = 1;
+                  let fontWeight = 'bold';
+
+                  if (isHighlighted) {
+                    if (customization.karaokeStyle === 'pop') {
+                      color = '#FCD34D'; // Yellow
+                    } else if (customization.karaokeStyle === 'hormozi') {
+                      color = '#22c55e'; // Green
+                    } else if (customization.karaokeStyle === 'neon') {
+                      color = '#22d3ee'; // Cyan
+                      textShadow = '0 0 10px #22d3ee, 0 0 20px #22d3ee, 0 0 30px #22d3ee';
+                    } else if (customization.karaokeStyle === 'punch') {
+                      color = '#000000'; // Black
+                      backgroundColor = '#FCD34D'; // Yellow box
+                      padding = '0 12px';
+                      borderRadius = '8px';
+                      scale = 1.05;
+                    } else if (customization.karaokeStyle === 'tiktok') {
+                      color = '#ef4444'; // Red
+                      textShadow = '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000';
+                    }
+                  } else {
+                    if (customization.karaokeStyle === 'neon') {
+                      color = '#bae6fd'; // Light blue
+                    } else if (customization.karaokeStyle === 'tiktok') {
+                      textShadow = '-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000';
+                    }
+                  }
+
                   return (
                     <span 
                       key={index} 
+                      className={`inline-block ${customization.karaokeStyle === 'hormozi' ? 'uppercase' : ''}`}
                       style={{ 
-                        color: isHighlighted ? '#FCD34D' : 'white',
-                        transition: 'color 0.2s ease-in-out' 
+                        color,
+                        backgroundColor,
+                        padding,
+                        borderRadius,
+                        textShadow,
+                        transform: `scale(${scale})`,
+                        fontWeight,
+                        transition: isExporting ? 'none' : 'all 0.15s ease-in-out' 
                       }}
                     >
                       {word.arabic}
@@ -138,12 +186,21 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
                   );
                 })
               ) : (
-                <span>{displayArabic}</span>
+                <span style={{ color: customization.arabicColor }}>{displayArabic}</span>
               )}
             </div>
+            
+            {customization.showSeparator && (
+              <div className="w-16 h-1 bg-yellow-500/80 rounded-full" />
+            )}
+
             <div 
-              className="text-white text-center font-sans font-medium px-8 bg-black/60 p-4 rounded-xl max-w-[90%]"
-              style={{ fontSize: transFontSize }}
+              className={`text-center px-8 p-4 rounded-xl max-w-[90%] ${customization.translationBackground ? 'bg-black/60' : ''}`}
+              style={{ 
+                fontSize: transFontSize,
+                fontFamily: fontMap[customization.translationFontFamily] || 'sans-serif',
+                color: customization.translationColor
+              }}
             >
               {verse.translation}
             </div>

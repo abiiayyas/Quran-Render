@@ -2,6 +2,44 @@ import React from 'react';
 import { useAppStore } from '../store';
 import { invoke } from '@tauri-apps/api/core';
 
+const FakeProgress = ({ status }: { status: string }) => {
+  const [progress, setProgress] = React.useState(0);
+  
+  React.useEffect(() => {
+    if (status === 'processing') {
+      setProgress(10); // Start at 10%
+      const interval = setInterval(() => {
+        setProgress(p => {
+          if (p >= 95) return p;
+          // Increment randomly between 2 and 8
+          return p + (Math.random() * 6 + 2);
+        });
+      }, 2000);
+      return () => clearInterval(interval);
+    } else if (status === 'done') {
+      setProgress(100);
+    }
+  }, [status]);
+
+  return (
+    <div className="flex items-center gap-3 mt-2">
+      <div className="w-48 bg-gray-700 rounded-full h-2.5 overflow-hidden">
+        <div 
+          className={`h-2.5 rounded-full transition-all duration-500 ${status === 'done' ? 'bg-green-500' : 'bg-blue-600 relative'}`} 
+          style={{ width: `${Math.min(progress, 100)}%` }}
+        >
+          {status === 'processing' && (
+            <div className="absolute top-0 left-0 right-0 bottom-0 bg-white/20 animate-pulse"></div>
+          )}
+        </div>
+      </div>
+      <span className="text-xs text-gray-300 font-medium w-10 text-right">
+        {Math.round(Math.min(progress, 100))}%
+      </span>
+    </div>
+  );
+};
+
 export const Queue: React.FC = () => {
   const { renderQueue, updateRenderJob } = useAppStore();
 
@@ -54,10 +92,8 @@ export const Queue: React.FC = () => {
                       Process
                     </button>
                   )}
-                  {job.status === 'processing' && (
-                    <div className="w-48 bg-gray-700 rounded-full h-2.5">
-                      <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${job.progress}%` }}></div>
-                    </div>
+                  {(job.status === 'processing' || job.status === 'done') && (
+                    <FakeProgress status={job.status} />
                   )}
                 </div>
               </li>

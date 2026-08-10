@@ -225,10 +225,33 @@ export const Editor: React.FC = () => {
           
           if (store.customization.karaokeMode && verse.words && verse.words.length > 0) {
             const displayWords = verse.words.slice(slide.wordStartIndex, slide.wordEndIndex);
+            
+            // Add unhighlighted base frame at the start
+            store.updateCustomization({ highlightWordIndex: null });
+            await new Promise(res => setTimeout(res, 50));
+            
+            const baseFrameUrl = await toPng(el, {
+              width: 1080, height: 1920, cacheBust: true, backgroundColor: 'transparent',
+              style: { transform: 'scale(1)', transformOrigin: 'top left', background: 'transparent' },
+              pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer'
+            });
+
+            let previous_end_ms = 0;
+            if (displayWords.length > 0 && displayWords[0].start_ms !== null && displayWords[0].start_ms > 0) {
+              overlaySequence.push({
+                base64: baseFrameUrl.replace(/^data:image\/png;base64,/, ""),
+                start_ms: Math.round(cumulativeAudioDurationMs + 0),
+                end_ms: Math.round(cumulativeAudioDurationMs + displayWords[0].start_ms),
+                fade_in: true,
+                fade_out: false
+              });
+              previous_end_ms = displayWords[0].start_ms;
+            }
+
             for (let i = 0; i < displayWords.length; i++) {
               const word = displayWords[i];
               const actualWordIndex = slide.wordStartIndex + i;
-              if (word.start_ms === null || word.end_ms === null) continue;
+              if (word.start_ms === null) continue;
               
               store.updateCustomization({ highlightWordIndex: actualWordIndex });
               await new Promise(res => setTimeout(res, 50));
@@ -239,21 +262,24 @@ export const Editor: React.FC = () => {
                 pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer'
               });
               
+              const start_time = word.start_ms;
+              const next_word = displayWords[i + 1];
+              const end_time = next_word?.start_ms ?? (verse.audioDurationMs || 5000);
+              
+              const is_first = i === 0 && previous_end_ms === 0;
+              const is_last = i === displayWords.length - 1;
+
               overlaySequence.push({
                 base64: frameDataUrl.replace(/^data:image\/png;base64,/, ""),
-                start_ms: Math.round(cumulativeAudioDurationMs + (word.start_ms || 0)),
-                end_ms: Math.round(cumulativeAudioDurationMs + (word.end_ms || verse.audioDurationMs || 5000))
+                start_ms: Math.round(cumulativeAudioDurationMs + start_time),
+                end_ms: Math.round(cumulativeAudioDurationMs + end_time),
+                fade_in: is_first,
+                fade_out: is_last
               });
             }
             store.updateCustomization({ highlightWordIndex: null });
           } else {
              // Static slide
-             const frameDataUrl = await toPng(el, {
-               width: 1080, height: 1920, cacheBust: true, backgroundColor: 'transparent',
-               style: { transform: 'scale(1)', transformOrigin: 'top left', background: 'transparent' },
-               pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer'
-             });
-             
              const displayWords = verse.words ? verse.words.slice(slide.wordStartIndex, slide.wordEndIndex) : [];
              const firstWord = displayWords.length > 0 ? displayWords[0] : null;
              const lastWord = displayWords.length > 0 ? displayWords[displayWords.length-1] : null;
@@ -261,10 +287,18 @@ export const Editor: React.FC = () => {
              const startMs = firstWord?.start_ms ?? 0;
              const endMs = lastWord?.end_ms ?? (verse.audioDurationMs || 5000);
              
+             const frameDataUrl = await toPng(el, {
+                width: 1080, height: 1920, cacheBust: true, backgroundColor: 'transparent',
+                style: { transform: 'scale(1)', transformOrigin: 'top left', background: 'transparent' },
+                pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer'
+             });
+             
              overlaySequence.push({
-                base64: frameDataUrl.replace(/^data:image\/png;base64,/, ""),
-                start_ms: Math.round(cumulativeAudioDurationMs + startMs),
-                end_ms: Math.round(cumulativeAudioDurationMs + endMs)
+               base64: frameDataUrl.replace(/^data:image\/png;base64,/, ""),
+               start_ms: Math.round(cumulativeAudioDurationMs + startMs),
+               end_ms: Math.round(cumulativeAudioDurationMs + endMs),
+               fade_in: true,
+               fade_out: true
              });
           }
         }

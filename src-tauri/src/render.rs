@@ -11,6 +11,8 @@ pub struct OverlayFrame {
     pub base64: String,
     pub start_ms: u32,
     pub end_ms: u32,
+    pub fade_in: Option<bool>,
+    pub fade_out: Option<bool>,
 }
 
 #[derive(Serialize, Clone)]
@@ -163,14 +165,8 @@ fn execute_ffmpeg(job: &RenderJob) -> Result<(), String> {
             let start_sec = frame.start_ms as f32 / 1000.0;
             let end_sec = frame.end_ms as f32 / 1000.0;
             
-            let is_fade = job.animation_style.as_deref() == Some("fade");
-            
-            if is_fade {
-                args.push("-loop".to_string());
-                args.push("1".to_string());
-                args.push("-t".to_string());
-                args.push(format!("{}", end_sec + 0.5));
-            }
+            let do_fade_in = job.animation_style.as_deref() == Some("fade") && frame.fade_in.unwrap_or(true);
+            let do_fade_out = job.animation_style.as_deref() == Some("fade") && frame.fade_out.unwrap_or(true);
             
             let input_index = 1 + job.audio_paths.len() + i;
             args.push("-i".to_string());
@@ -178,14 +174,18 @@ fn execute_ffmpeg(job: &RenderJob) -> Result<(), String> {
 
             let out_node = format!("v{}", i);
 
-            // Add simple fade-in for the text layer. Note: This requires ffmpeg >= 4.3 for enable on fade. We can just use enable.
-            // Using enable='between(t, start, end)'
-            if is_fade {
+            if do_fade_in || do_fade_out {
                 let fade_out_start = (end_sec - 0.5).max(start_sec);
-                filter_complex.push_str(&format!(
-                    "[{}:v]format=yuva420p,fade=t=in:st={}:d=0.5:alpha=1,fade=t=out:st={}:d=0.5:alpha=1[v{}_faded];",
-                    input_index, start_sec, fade_out_start, i
-                ));
+                let mut filter = format!("[{}:v]loop=-1:1:0,setpts=N/25/TB,format=yuva420p", input_index);
+                if do_fade_in {
+                    filter.push_str(&format!(",fade=t=in:st={}:d=0.5:alpha=1", start_sec));
+                }
+                if do_fade_out {
+                    filter.push_str(&format!(",fade=t=out:st={}:d=0.5:alpha=1", fade_out_start));
+                }
+                filter.push_str(&format!("[v{}_faded];", i));
+                
+                filter_complex.push_str(&filter);
                 filter_complex.push_str(&format!(
                     "[{}][v{}_faded]overlay=0:0:enable='between(t,{},{})'[{}]",
                     current_bg, i, start_sec, end_sec, out_node

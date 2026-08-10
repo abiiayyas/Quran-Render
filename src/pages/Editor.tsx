@@ -1,6 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useAppStore } from '../store';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
+import { writeFile, readFile } from '@tauri-apps/plugin-fs';
 import { toPng } from 'html-to-image';
 import { PreviewCanvas, PreviewCanvasHandle } from '../components/PreviewCanvas';
 import { getAudioDuration } from '../utils/audio';
@@ -22,6 +23,63 @@ export const Editor: React.FC = () => {
   const [useQuranApi, setUseQuranApi] = useState(true);
   const [manualArabic, setManualArabic] = useState('');
   const [manualTranslation, setManualTranslation] = useState('');
+  
+  const [thumbnailTitle, setThumbnailTitle] = useState('Surah Al-Baqarah');
+  const [thumbnailSubtitle, setThumbnailSubtitle] = useState('Mishary Rashid Alafasy');
+  const [generatingThumb, setGeneratingThumb] = useState(false);
+  const [thumbnailBgDataUrl, setThumbnailBgDataUrl] = useState('');
+
+  useEffect(() => {
+    if (store.customization.thumbnailPath) {
+      readFile(store.customization.thumbnailPath).then(bytes => {
+        const ext = store.customization.thumbnailPath!.split('.').pop()?.toLowerCase();
+        const mime = ext === 'png' ? 'image/png' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/webp';
+        const blob = new Blob([bytes], { type: mime });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setThumbnailBgDataUrl(reader.result as string);
+        };
+        reader.readAsDataURL(blob);
+      }).catch(e => {
+        console.error("Failed to load thumbnail background", e);
+        setThumbnailBgDataUrl('');
+      });
+    } else {
+      setThumbnailBgDataUrl('');
+    }
+  }, [store.customization.thumbnailPath]);
+
+  const handleGenerateThumbnailText = async () => {
+    const el = document.getElementById('thumbnail-generator');
+    if (!el) return;
+    try {
+      setGeneratingThumb(true);
+      const dataUrl = await toPng(el, { width: 1080, height: 1920, cacheBust: true, backgroundColor: '#000000' });
+      const base64Data = dataUrl.replace(/^data:image\/png;base64,/, "");
+      
+      const binaryString = window.atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      const filePath = await save({
+          filters: [{ name: 'Image', extensions: ['png'] }],
+          defaultPath: 'thumbnail.png'
+      });
+      
+      if (filePath) {
+          await writeFile(filePath, bytes);
+          store.updateCustomization({ thumbnailPath: filePath });
+          alert('Thumbnail generated and saved successfully!');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to generate thumbnail: ' + e);
+    } finally {
+      setGeneratingThumb(false);
+    }
+  };
 
   const handleSetManualText = () => {
     store.setVerses([{
@@ -442,9 +500,20 @@ export const Editor: React.FC = () => {
                 {store.bgPath && <span className="text-xs text-muted-foreground mt-1 break-all px-2">{store.bgPath}</span>}
               </button>
               <button onClick={handleImportThumbnail} className="w-full bg-muted hover:bg-muted/80 py-2 rounded transition flex flex-col items-center justify-center p-2 text-sm">
-                <span className="font-semibold text-foreground">Import Thumbnail (Optional)</span>
+                <span className="font-semibold text-foreground">Import Thumbnail</span>
                 {store.customization.thumbnailPath && <span className="text-xs text-muted-foreground mt-1 break-all px-2">{store.customization.thumbnailPath}</span>}
               </button>
+              
+              <div className="pt-2 mt-2 border-t border-border">
+                <h4 className="text-xs font-semibold mb-2">Generate Text Thumbnail</h4>
+                <div className="space-y-2">
+                  <input type="text" value={thumbnailTitle} onChange={e => setThumbnailTitle(e.target.value)} placeholder="Title (e.g. Surah Al-Baqarah)" className="w-full p-2 bg-background border border-input rounded text-foreground text-sm" />
+                  <input type="text" value={thumbnailSubtitle} onChange={e => setThumbnailSubtitle(e.target.value)} placeholder="Subtitle (e.g. Mishary Rashid)" className="w-full p-2 bg-background border border-input rounded text-foreground text-sm" />
+                  <button onClick={handleGenerateThumbnailText} disabled={generatingThumb} className="w-full bg-secondary hover:bg-secondary/80 py-2 rounded text-secondary-foreground text-sm transition">
+                    {generatingThumb ? 'Generating...' : 'Generate & Save Thumbnail'}
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
           </>
@@ -702,6 +771,7 @@ export const Editor: React.FC = () => {
               onChange={e => store.setSelectedTemplate(e.target.value)}
               className="w-full p-2 bg-background border border-input rounded text-foreground"
             >
+              <option value="default">Default (No Style)</option>
               <option value="minimal">Minimal</option>
               <option value="cinematic">Cinematic</option>
               <option value="clean">Clean</option>
@@ -715,7 +785,7 @@ export const Editor: React.FC = () => {
       <div className="flex-1 bg-background flex flex-col p-4">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-4">
-            <h3 className="font-semibold text-muted-foreground">Preview (1080x1920)</h3>
+            <h3 className="font-semibold text-muted-foreground hidden">Preview (1080x1920)</h3>
             <div className="flex items-center bg-card rounded overflow-hidden">
               <button 
                 onClick={() => { (previewRef.current as any)?.playPreview?.(); }}
@@ -750,6 +820,19 @@ export const Editor: React.FC = () => {
         
         <div className="flex-1 flex justify-center items-center bg-black rounded-lg overflow-hidden border border-border p-4">
           <PreviewCanvas ref={previewRef} />
+        </div>
+      </div>
+
+      {/* Hidden Thumbnail Generator Container */}
+      <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', zIndex: -10 }}>
+        <div id="thumbnail-generator" className="relative flex flex-col items-center justify-center gap-6 overflow-hidden" style={{ width: '1080px', height: '1920px', background: 'radial-gradient(circle at center, #1a1a1a 0%, #000000 100%)' }}>
+           {thumbnailBgDataUrl && (
+             <img src={thumbnailBgDataUrl} className="absolute inset-0 w-full h-full object-cover z-0" />
+           )}
+           <div className="z-10 flex flex-col items-center gap-6 px-16 py-12 bg-black/50 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl">
+             <h1 className="text-white font-bold text-center" style={{ fontSize: '100px', lineHeight: '1.2', textShadow: '0 4px 24px rgba(0,0,0,0.5)' }}>{thumbnailTitle}</h1>
+             <p className="text-gray-300 font-semibold text-center" style={{ fontSize: '60px', textShadow: '0 2px 12px rgba(0,0,0,0.5)' }}>{thumbnailSubtitle}</p>
+           </div>
         </div>
       </div>
     </div>

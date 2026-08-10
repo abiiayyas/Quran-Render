@@ -37,20 +37,7 @@ export const Settings: React.FC = () => {
         <section className="bg-card p-6 rounded-lg border border-border shadow-sm">
           <h3 className="text-xl font-semibold mb-4 text-card-foreground">Text & Appearance</h3>
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1">Arabic Font</label>
-              <select 
-                value={settings.font}
-                onChange={(e) => updateSettings({ font: e.target.value })}
-                className="w-full h-10 bg-background border border-input rounded-md px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <option value="Uthmanic">Uthmanic (Hafs)</option>
-                <option value="LPMQ">LPMQ (Kemenag)</option>
-                <option value="amiri">Amiri</option>
-              </select>
-            </div>
-            
-            <div className="pt-4 border-t border-border">
+            <div className="border-border">
               <label className="block text-sm text-muted-foreground mb-1">App Theme</label>
               <div className="flex gap-4 mt-2">
                 <label className="flex items-center gap-2 cursor-pointer">

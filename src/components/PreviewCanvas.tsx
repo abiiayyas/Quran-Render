@@ -165,9 +165,8 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
             key={`${activeSlideId}-${customization.animationStyle}`}
             className={`absolute w-full px-16 flex flex-col items-center gap-12 ${getTemplateOverlayClass()} ${isFading ? 'animate-in fade-in duration-500' : ''}`}
             style={{ 
-              top: selectedTemplate === 'cinematic' ? 'auto' : topPosition, 
-              bottom: selectedTemplate === 'cinematic' ? '0' : 'auto',
-              transform: selectedTemplate === 'cinematic' ? 'none' : 'translateY(-50%)',
+              top: topPosition, 
+              transform: 'translateY(-50%)',
               animation: isFading ? 'fadeIn 0.5s ease-in-out' : 'none'
             }}
           >
@@ -179,7 +178,7 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
             `}</style>
             <div 
               dir="rtl" 
-              className="font-bold leading-tight text-center w-full flex justify-center flex-wrap gap-x-4" 
+              className="font-bold leading-normal text-center w-full flex justify-center flex-wrap gap-x-4 py-4" 
               style={{ fontFamily: fontMap[customization.arabicFontFamily] || 'Uthmanic, serif', fontSize: arabicFontSize, textShadow: '0px 4px 12px rgba(0,0,0,0.8)' }}
             >
               {customization.karaokeMode && displayWords.length > 0 ? (

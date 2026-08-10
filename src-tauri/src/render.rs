@@ -34,6 +34,8 @@ pub struct RenderJob {
     pub overlay_sequence: Option<Vec<OverlayFrame>>,
     pub thumbnail_path: Option<String>,
     pub animation_style: Option<String>,
+    pub orientation: Option<String>,
+    pub duration: Option<u32>,
 }
 
 static mut WORKER_TX: Option<Sender<RenderJob>> = None;
@@ -151,7 +153,11 @@ fn execute_ffmpeg(job: &RenderJob) -> Result<(), String> {
         "1:a".to_string()
     };
 
-    filter_complex.push_str("[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[bg];");
+    if job.orientation.as_deref() == Some("landscape") {
+        filter_complex.push_str("[0:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080[bg];");
+    } else {
+        filter_complex.push_str("[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[bg];");
+    }
     let mut current_bg = "bg".to_string();
     let mut temp_paths = Vec::new();
 
@@ -228,7 +234,12 @@ fn execute_ffmpeg(job: &RenderJob) -> Result<(), String> {
     args.push("libx264".to_string());
     args.push("-c:a".to_string());
     args.push("aac".to_string());
-    args.push("-shortest".to_string());
+    if let Some(dur) = job.duration {
+        args.push("-t".to_string());
+        args.push(dur.to_string());
+    } else {
+        args.push("-shortest".to_string());
+    }
 
     let temp_output = temp_dir.join(format!("{}_temp.mp4", job.id));
     if job.thumbnail_path.is_some() {

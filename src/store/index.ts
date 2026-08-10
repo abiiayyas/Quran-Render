@@ -84,6 +84,8 @@ interface AppState {
     watermarkImage: string | null;
     watermarkPositionY: number;
     animationStyle: 'none' | 'fade';
+    videoOrientation: 'vertical' | 'landscape';
+    videoDuration: number | null;
   };
   updateCustomization: (newCust: Partial<AppState['customization']>) => void;
   clearProject: () => void;
@@ -230,6 +232,8 @@ export const useAppStore = create<AppState>((set) => ({
     watermarkImage: null,
     watermarkPositionY: 12,
     animationStyle: 'none',
+    videoOrientation: 'vertical',
+    videoDuration: null,
   },
   updateCustomization: (newCust) => set((state) => ({
     customization: { ...state.customization, ...newCust }
@@ -261,6 +265,8 @@ export const useAppStore = create<AppState>((set) => ({
       watermarkImage: null,
       watermarkPositionY: 12,
       animationStyle: 'none',
+      videoOrientation: 'vertical',
+      videoDuration: null,
     }
   })
 }));

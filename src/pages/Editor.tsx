@@ -54,7 +54,9 @@ export const Editor: React.FC = () => {
     if (!el) return;
     try {
       setGeneratingThumb(true);
-      const dataUrl = await toPng(el, { width: 1080, height: 1920, cacheBust: true, backgroundColor: '#000000' });
+      const baseW = store.customization.videoOrientation === 'landscape' ? 1920 : 1080;
+      const baseH = store.customization.videoOrientation === 'landscape' ? 1080 : 1920;
+      const dataUrl = await toPng(el, { width: baseW, height: baseH, cacheBust: true, backgroundColor: '#000000' });
       const base64Data = dataUrl.replace(/^data:image\/png;base64,/, "");
       
       const binaryString = window.atob(base64Data);
@@ -194,7 +196,9 @@ export const Editor: React.FC = () => {
       
       const dir = store.settings.outputDir.replace(/\/$/, '');
       
-      // We need to render the canvas at 1080x1920 without scaling for the export.
+      const baseW = store.customization.videoOrientation === 'landscape' ? 1920 : 1080;
+      const baseH = store.customization.videoOrientation === 'landscape' ? 1080 : 1920;
+      // We need to render the canvas at baseW x baseH without scaling for the export.
       const el = previewRef.current;
 
       if (store.slides.length === 0) {
@@ -231,7 +235,7 @@ export const Editor: React.FC = () => {
             await new Promise(res => setTimeout(res, 50));
             
             const baseFrameUrl = await toPng(el, {
-              width: 1080, height: 1920, cacheBust: true, backgroundColor: 'transparent',
+              width: baseW, height: baseH, cacheBust: true, backgroundColor: 'transparent',
               style: { transform: 'scale(1)', transformOrigin: 'top left', background: 'transparent' },
               pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer'
             });
@@ -257,7 +261,7 @@ export const Editor: React.FC = () => {
               await new Promise(res => setTimeout(res, 50));
               
               const frameDataUrl = await toPng(el, {
-                width: 1080, height: 1920, cacheBust: true, backgroundColor: 'transparent',
+                width: baseW, height: baseH, cacheBust: true, backgroundColor: 'transparent',
                 style: { transform: 'scale(1)', transformOrigin: 'top left', background: 'transparent' },
                 pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer'
               });
@@ -288,7 +292,7 @@ export const Editor: React.FC = () => {
              const endMs = lastWord?.end_ms ?? (verse.audioDurationMs || 5000);
              
              const frameDataUrl = await toPng(el, {
-                width: 1080, height: 1920, cacheBust: true, backgroundColor: 'transparent',
+                width: baseW, height: baseH, cacheBust: true, backgroundColor: 'transparent',
                 style: { transform: 'scale(1)', transformOrigin: 'top left', background: 'transparent' },
                 pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer'
              });
@@ -323,7 +327,9 @@ export const Editor: React.FC = () => {
           overlay_base64: null,
           overlay_sequence: overlaySequence.length > 0 ? overlaySequence : null,
           thumbnail_path: store.customization.thumbnailPath,
-          animation_style: store.customization.animationStyle !== 'none' ? store.customization.animationStyle : null
+          animation_style: store.customization.animationStyle !== 'none' ? store.customization.animationStyle : null,
+          orientation: store.customization.videoOrientation,
+          duration: store.customization.videoDuration !== null ? store.customization.videoDuration : null
         }
       });
       
@@ -749,6 +755,36 @@ export const Editor: React.FC = () => {
                     />
                   </div>
                 )}
+              </div>
+
+              <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-input">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Video Orientation</span>
+                  <select 
+                    value={store.customization.videoOrientation}
+                    onChange={e => store.updateCustomization({ videoOrientation: e.target.value as any })}
+                    className="bg-background border border-input rounded text-foreground text-xs px-2 py-1"
+                  >
+                    <option value="vertical">Vertical (9:16)</option>
+                    <option value="landscape">Landscape (16:9)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-input">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Render Duration</span>
+                  <div className="flex gap-2">
+                    <input 
+                      type="number"
+                      placeholder="Auto"
+                      value={store.customization.videoDuration || ''}
+                      onChange={e => store.updateCustomization({ videoDuration: e.target.value ? parseInt(e.target.value) : null })}
+                      className="bg-background border border-input rounded text-foreground text-xs px-2 py-1 w-20"
+                    />
+                    <span className="text-xs text-muted-foreground self-center">sec</span>
+                  </div>
+                </div>
               </div>
 
               <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-input">

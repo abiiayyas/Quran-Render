@@ -17,19 +17,22 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.3);
 
+  const baseW = customization.videoOrientation === 'landscape' ? 1920 : 1080;
+  const baseH = customization.videoOrientation === 'landscape' ? 1080 : 1920;
+
   useEffect(() => {
     if (!wrapperRef.current) return;
     const observer = new ResizeObserver((entries) => {
       for (let entry of entries) {
         const { width, height } = entry.contentRect;
-        const scaleW = width / 1080;
-        const scaleH = height / 1920;
+        const scaleW = width / baseW;
+        const scaleH = height / baseH;
         setScale(Math.min(scaleW, scaleH));
       }
     });
     observer.observe(wrapperRef.current);
     return () => observer.disconnect();
-  }, []);
+  }, [baseW, baseH]);
 
   // Expose methods to parent
   useImperativeHandle(ref, () => {
@@ -123,13 +126,13 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
 
   return (
     <div ref={wrapperRef} className="w-full h-full flex justify-center items-center overflow-hidden bg-black">
-      <div className="relative flex-shrink-0 bg-zinc-900" style={{ width: `${1080 * scale}px`, height: `${1920 * scale}px` }}>
+      <div className="relative flex-shrink-0 bg-zinc-900" style={{ width: `${baseW * scale}px`, height: `${baseH * scale}px` }}>
         <div 
           ref={containerRef}
           className="preview-canvas-container absolute top-0 left-0 flex flex-col items-center justify-center overflow-hidden"
           style={{
-            width: '1080px',
-            height: '1920px',
+            width: `${baseW}px`,
+            height: `${baseH}px`,
             transform: `scale(${scale})`,
             transformOrigin: 'top left',
           }}

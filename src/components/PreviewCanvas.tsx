@@ -1,4 +1,4 @@
-import { forwardRef, useRef, useImperativeHandle } from 'react';
+import { forwardRef, useRef, useImperativeHandle, useState, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
@@ -14,6 +14,22 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.3);
+
+  useEffect(() => {
+    if (!wrapperRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        const { width, height } = entry.contentRect;
+        const scaleW = width / 1080;
+        const scaleH = height / 1920;
+        setScale(Math.min(scaleW, scaleH));
+      }
+    });
+    observer.observe(wrapperRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   // Expose methods to parent
   useImperativeHandle(ref, () => {
@@ -22,16 +38,25 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
       el.playPreview = () => {
         if (videoRef.current) videoRef.current.play();
         if (audioRef.current) {
+          // Sync audio to the first word of the slide if it's starting from the beginning
+          if (audioRef.current.currentTime < 0.1 && displayWords.length > 0 && displayWords[0].start_ms !== null) {
+            audioRef.current.currentTime = displayWords[0].start_ms / 1000;
+          }
           audioRef.current.play();
           if (customization.karaokeMode && verse && verse.words) {
             audioRef.current.ontimeupdate = () => {
               const timeMs = audioRef.current!.currentTime * 1000;
-              const activeWordIndex = displayWords.findIndex(w => 
+              const localIndex = displayWords.findIndex(w => 
                 w.start_ms !== null && w.end_ms !== null && 
                 timeMs >= w.start_ms && timeMs <= w.end_ms
               );
-              if (activeWordIndex !== -1 && customization.highlightWordIndex !== activeWordIndex) {
-                useAppStore.getState().updateCustomization({ highlightWordIndex: activeWordIndex });
+              
+              const globalIndex = localIndex !== -1 && activeSlide ? activeSlide.wordStartIndex + localIndex : -1;
+              
+              if (globalIndex !== -1 && customization.highlightWordIndex !== globalIndex) {
+                useAppStore.getState().updateCustomization({ highlightWordIndex: globalIndex });
+              } else if (globalIndex === -1 && customization.highlightWordIndex !== null) {
+                useAppStore.getState().updateCustomization({ highlightWordIndex: null });
               }
             };
           }
@@ -82,17 +107,18 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
   const isImageBg = bgPath?.toLowerCase().match(/\.(jpg|jpeg|png|webp)$/);
 
   return (
-    <div className="relative flex-shrink-0" style={{ width: '324px', height: '576px' }}>
-      <div 
-        ref={containerRef}
-        className="preview-canvas-container absolute top-0 left-0 flex flex-col items-center justify-center overflow-hidden"
-        style={{
-          width: '1080px',
-          height: '1920px',
-          transform: 'scale(0.3)', // Scale down for UI preview
-          transformOrigin: 'top left',
-        }}
-      >
+    <div ref={wrapperRef} className="w-full h-full flex justify-center items-center overflow-hidden">
+      <div className="relative flex-shrink-0" style={{ width: `${1080 * scale}px`, height: `${1920 * scale}px` }}>
+        <div 
+          ref={containerRef}
+          className="preview-canvas-container absolute top-0 left-0 flex flex-col items-center justify-center overflow-hidden"
+          style={{
+            width: '1080px',
+            height: '1920px',
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+          }}
+        >
         {/* Background Layer - Hidden during export by html-to-image filter logic in Editor.tsx */}
         <div id="preview-bg-layer" className="absolute inset-0 w-full h-full object-cover -z-10">
           {isVideoBg && bgPath && <video ref={videoRef} src={convertFileSrc(bgPath)} className="w-full h-full object-cover" loop muted playsInline />}
@@ -131,7 +157,8 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
             >
               {customization.karaokeMode && displayWords.length > 0 ? (
                 displayWords.map((word, index) => {
-                  const isHighlighted = customization.highlightWordIndex === index;
+                  const globalIndex = activeSlide ? activeSlide.wordStartIndex + index : index;
+                  const isHighlighted = customization.highlightWordIndex === globalIndex;
                   let color = customization.arabicColor;
                   let backgroundColor = 'transparent';
                   let padding = '0';
@@ -189,21 +216,24 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
                 <span style={{ color: customization.arabicColor }}>{displayArabic}</span>
               )}
             </div>
-            
             {customization.showSeparator && (
               <div className="w-16 h-1 bg-yellow-500/80 rounded-full" />
             )}
 
-            <div 
-              className={`text-center px-8 p-4 rounded-xl max-w-[90%] ${customization.translationBackground ? 'bg-black/60' : ''}`}
-              style={{ 
-                fontSize: transFontSize,
-                fontFamily: fontMap[customization.translationFontFamily] || 'sans-serif',
-                color: customization.translationColor
-              }}
-            >
-              {verse.translation}
-            </div>
+            {customization.showTranslation && (
+              <div 
+                className={`text-center px-8 p-4 rounded-xl max-w-[90%] ${customization.translationBackground ? 'bg-black/60' : ''}`}
+                style={{ 
+                  fontSize: transFontSize,
+                  fontFamily: fontMap[customization.translationFontFamily] || 'sans-serif',
+                  color: customization.translationColor
+                }}
+              >
+                {customization.translationLanguage === 'en' 
+                  ? (activeSlide?.translation_en || verse.translation_en)
+                  : (activeSlide?.translation || verse.translation)}
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-gray-400 text-5xl font-bold bg-black/50 p-8 rounded-xl z-10">
@@ -212,5 +242,6 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
         )}
       </div>
     </div>
-  );
+  </div>
+);
 });

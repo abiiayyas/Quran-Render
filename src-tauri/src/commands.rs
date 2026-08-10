@@ -57,13 +57,14 @@ pub struct QuranAyah {
     pub ayah: u32,
     pub arabic: String,
     pub translation: String,
+    pub translation_en: Option<String>,
     pub words: Vec<QuranWord>,
 }
 
 #[tauri::command]
 pub fn get_quran_ayah(state: State<'_, AppState>, surah: u32, ayah: u32) -> Result<Option<QuranAyah>, String> {
     let db = state.db.lock().unwrap();
-    let mut stmt = db.prepare("SELECT arabic, translation, words_json FROM quran_cache WHERE surah = ?1 AND ayah = ?2").map_err(|e| e.to_string())?;
+    let mut stmt = db.prepare("SELECT arabic, translation, words_json, translation_en FROM quran_cache WHERE surah = ?1 AND ayah = ?2").map_err(|e| e.to_string())?;
     let mut rows = stmt.query([surah, ayah]).map_err(|e| e.to_string())?;
 
     if let Some(row) = rows.next().map_err(|e| e.to_string())? {
@@ -78,6 +79,7 @@ pub fn get_quran_ayah(state: State<'_, AppState>, surah: u32, ayah: u32) -> Resu
             ayah,
             arabic: row.get(0).map_err(|e| e.to_string())?,
             translation: row.get(1).map_err(|e| e.to_string())?,
+            translation_en: row.get(3).unwrap_or(None),
             words,
         }))
     } else {
@@ -90,8 +92,8 @@ pub fn save_quran_ayah(state: State<'_, AppState>, ayah: QuranAyah) -> Result<()
     let db = state.db.lock().unwrap();
     let words_json = serde_json::to_string(&ayah.words).unwrap_or_default();
     db.execute(
-        "INSERT OR REPLACE INTO quran_cache (surah, ayah, arabic, translation, words_json) VALUES (?1, ?2, ?3, ?4, ?5)",
-        (ayah.surah, ayah.ayah, &ayah.arabic, &ayah.translation, &words_json),
+        "INSERT OR REPLACE INTO quran_cache (surah, ayah, arabic, translation, words_json, translation_en) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        (ayah.surah, ayah.ayah, &ayah.arabic, &ayah.translation, &words_json, &ayah.translation_en),
     ).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -103,6 +105,7 @@ pub async fn fetch_quran_verses(state: State<'_, AppState>, surah: u32, ayat_sta
 
     #[derive(Deserialize)]
     struct TranslationObj {
+        resource_id: u32,
         text: String,
     }
     #[derive(Deserialize)]
@@ -135,13 +138,14 @@ pub async fn fetch_quran_verses(state: State<'_, AppState>, surah: u32, ayat_sta
     {
         let db = state.db.lock().unwrap();
         let _ = db.execute("ALTER TABLE quran_cache ADD COLUMN words_json TEXT", []);
+        let _ = db.execute("ALTER TABLE quran_cache ADD COLUMN translation_en TEXT", []);
     }
 
     let start_page = (ayat_start.saturating_sub(1)) / 50 + 1;
     let end_page = (ayat_end.saturating_sub(1)) / 50 + 1;
 
     for page in start_page..=end_page {
-        let url = format!("https://api.quran.com/api/v4/verses/by_chapter/{}?language=id&words=true&word_fields=text_uthmani&audio={}&translations=33&fields=text_uthmani&page={}&per_page=50", surah, reciter_id, page);
+        let url = format!("https://api.quran.com/api/v4/verses/by_chapter/{}?language=id&words=true&word_fields=text_uthmani&audio={}&translations=33,20&fields=text_uthmani&page={}&per_page=50", surah, reciter_id, page);
         let response = reqwest::get(&url).await.map_err(|e| e.to_string())?;
         
         let api_data: ApiResponse = response.json().await.map_err(|e| e.to_string())?;
@@ -151,9 +155,32 @@ pub async fn fetch_quran_verses(state: State<'_, AppState>, surah: u32, ayat_sta
             continue;
         }
 
-        let mut translation = v.translations.first().map(|t| t.text.clone()).unwrap_or_default();
-        if let Some(idx) = translation.find("<sup") {
-            translation.truncate(idx);
+        let mut translation_id = String::new();
+        let mut translation_en = String::new();
+
+        for t in &v.translations {
+            let mut clean_text = t.text.clone();
+            while let Some(start) = clean_text.find("<sup") {
+                if let Some(end_offset) = clean_text[start..].find("</sup") {
+                    let end = start + end_offset;
+                    if let Some(close_offset) = clean_text[end..].find('>') {
+                        clean_text.replace_range(start..end + close_offset + 1, "");
+                        continue;
+                    }
+                }
+                if let Some(close_offset) = clean_text[start..].find('>') {
+                    clean_text.replace_range(start..start + close_offset + 1, "");
+                    continue;
+                }
+                clean_text.truncate(start);
+                break;
+            }
+
+            if t.resource_id == 33 {
+                translation_id = clean_text;
+            } else if t.resource_id == 20 {
+                translation_en = clean_text;
+            }
         }
 
         let mut words = Vec::new();
@@ -191,8 +218,8 @@ pub async fn fetch_quran_verses(state: State<'_, AppState>, surah: u32, ayat_sta
         {
             let db = state.db.lock().unwrap();
             let _ = db.execute(
-                "INSERT OR REPLACE INTO quran_cache (surah, ayah, arabic, translation, words_json) VALUES (?1, ?2, ?3, ?4, ?5)",
-                (surah, v.verse_number, &v.text_uthmani, &translation, &words_json),
+                "INSERT OR REPLACE INTO quran_cache (surah, ayah, arabic, translation, words_json, translation_en) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                (surah, v.verse_number, &v.text_uthmani, &translation_id, &words_json, &translation_en),
             );
         }
         
@@ -200,7 +227,8 @@ pub async fn fetch_quran_verses(state: State<'_, AppState>, surah: u32, ayat_sta
                 surah,
                 ayah: v.verse_number,
                 arabic: v.text_uthmani.clone(),
-                translation: translation.clone(),
+                translation: translation_id.clone(),
+                translation_en: Some(translation_en),
                 words,
             });
         }

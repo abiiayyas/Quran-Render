@@ -97,6 +97,16 @@ pub fn enqueue_render(app_handle: tauri::AppHandle, job: RenderJob) -> Result<St
     }
 }
 
+fn get_ffmpeg_path() -> String {
+    let paths = ["ffmpeg", "/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"];
+    for path in paths {
+        if let Ok(_) = ProcessCommand::new(path).arg("-version").output() {
+            return path.to_string();
+        }
+    }
+    "ffmpeg".to_string()
+}
+
 fn execute_ffmpeg(job: &RenderJob) -> Result<(), String> {
     println!("Starting render job: {}", job.id);
     
@@ -204,12 +214,12 @@ fn execute_ffmpeg(job: &RenderJob) -> Result<(), String> {
         args.push(job.output_path.clone());
     }
 
-    let status = ProcessCommand::new("ffmpeg").args(&args).status();
+    let status = ProcessCommand::new(get_ffmpeg_path()).args(&args).status();
         
     if let Some(ref thumb) = job.thumbnail_path {
         if status.as_ref().map(|s| s.success()).unwrap_or(false) {
             println!("Embedding thumbnail: {}", thumb);
-            let thumb_status = ProcessCommand::new("ffmpeg")
+            let thumb_status = ProcessCommand::new(get_ffmpeg_path())
                 .args([
                     "-y",
                     "-i", temp_output.to_str().unwrap(),

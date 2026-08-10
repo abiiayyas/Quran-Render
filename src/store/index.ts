@@ -5,6 +5,7 @@ export interface QuranAyah {
   ayah: number;
   arabic: string;
   translation: string;
+  translation_en?: string;
   words: {
     position: number;
     arabic: string;
@@ -20,6 +21,8 @@ export interface Slide {
   verseIndex: number;
   wordStartIndex: number;
   wordEndIndex: number;
+  translation?: string;
+  translation_en?: string;
 }
 
 interface AppState {
@@ -44,6 +47,7 @@ interface AppState {
   
   slides: Slide[];
   setSlides: (slides: Slide[]) => void;
+  updateSlideTranslation: (slideId: string, lang: 'id' | 'en', text: string) => void;
   splitSlide: (slideId: string, wordIndex: number) => void;
   removeSlide: (slideId: string) => void;
   activeSlideId: string | null;
@@ -67,6 +71,8 @@ interface AppState {
     translationFontFamily: string;
     translationColor: string;
     translationBackground: boolean;
+    showTranslation: boolean;
+    translationLanguage: 'id' | 'en';
     showSeparator: boolean;
     textPositionY: number;
     karaokeMode: boolean;
@@ -119,7 +125,9 @@ export const useAppStore = create<AppState>((set) => ({
       id: `slide_${i}_${Date.now()}`,
       verseIndex: i,
       wordStartIndex: 0,
-      wordEndIndex: v.words ? v.words.length : 0
+      wordEndIndex: v.words ? v.words.length : 0,
+      translation: v.translation,
+      translation_en: v.translation_en
     }));
     set({ verses, slides });
   },
@@ -129,7 +137,9 @@ export const useAppStore = create<AppState>((set) => ({
       id: `slide_${state.verses.length}_${Date.now()}`,
       verseIndex: state.verses.length,
       wordStartIndex: 0,
-      wordEndIndex: verse.words ? verse.words.length : 0
+      wordEndIndex: verse.words ? verse.words.length : 0,
+      translation: verse.translation,
+      translation_en: verse.translation_en
     };
     return { verses: newVerses, slides: [...state.slides, newSlide] };
   }),
@@ -144,6 +154,17 @@ export const useAppStore = create<AppState>((set) => ({
   
   slides: [],
   setSlides: (slides) => set({ slides }),
+  updateSlideTranslation: (slideId, lang, text) => set((state) => {
+    const idx = state.slides.findIndex(s => s.id === slideId);
+    if (idx === -1) return state;
+    const newSlides = [...state.slides];
+    if (lang === 'id') {
+      newSlides[idx].translation = text;
+    } else {
+      newSlides[idx].translation_en = text;
+    }
+    return { slides: newSlides };
+  }),
   splitSlide: (slideId, wordIndex) => set((state) => {
     const idx = state.slides.findIndex(s => s.id === slideId);
     if (idx === -1) return state;
@@ -151,9 +172,21 @@ export const useAppStore = create<AppState>((set) => ({
     if (wordIndex <= slide.wordStartIndex || wordIndex >= slide.wordEndIndex) return state;
     
     const newSlides = [...state.slides];
+    
+    // Split translations in half by space
+    const splitText = (text?: string) => {
+      if (!text) return ['', ''];
+      const words = text.split(' ');
+      const mid = Math.floor(words.length / 2);
+      return [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
+    };
+    
+    const [transA, transB] = splitText(slide.translation);
+    const [transEnA, transEnB] = splitText(slide.translation_en);
+
     newSlides.splice(idx, 1, 
-      { ...slide, id: `${slide.id}_a`, wordEndIndex: wordIndex },
-      { ...slide, id: `${slide.id}_b`, wordStartIndex: wordIndex }
+      { ...slide, id: `${slide.id}_a`, wordEndIndex: wordIndex, translation: transA, translation_en: transEnA },
+      { ...slide, id: `${slide.id}_b`, wordStartIndex: wordIndex, translation: transB, translation_en: transEnB }
     );
     return { slides: newSlides };
   }),
@@ -183,6 +216,8 @@ export const useAppStore = create<AppState>((set) => ({
     translationFontFamily: 'sans-serif',
     translationColor: '#ffffff',
     translationBackground: true,
+    showTranslation: true,
+    translationLanguage: 'id',
     showSeparator: false,
     textPositionY: 50, // percentage (50 = center)
     karaokeMode: false,
@@ -211,6 +246,8 @@ export const useAppStore = create<AppState>((set) => ({
       translationFontFamily: 'sans-serif',
       translationColor: '#ffffff',
       translationBackground: true,
+      showTranslation: true,
+      translationLanguage: 'id',
       showSeparator: false,
       textPositionY: 50,
       karaokeMode: false,

@@ -382,6 +382,27 @@ export const Editor: React.FC = () => {
                           Split in half
                         </button>
                       )}
+                      
+                      {store.activeSlideId === slide.id && store.customization.showTranslation && (
+                        <div className="mt-3 space-y-2" onClick={e => e.stopPropagation()}>
+                          <div className="text-[10px] font-semibold uppercase text-muted-foreground">Edit Slide Translation</div>
+                          {store.customization.translationLanguage === 'id' ? (
+                            <textarea
+                              value={slide.translation || ''}
+                              onChange={(e) => store.updateSlideTranslation(slide.id, 'id', e.target.value)}
+                              className="w-full text-xs p-1 bg-background border border-input rounded"
+                              rows={2}
+                            />
+                          ) : (
+                            <textarea
+                              value={slide.translation_en || ''}
+                              onChange={(e) => store.updateSlideTranslation(slide.id, 'en', e.target.value)}
+                              className="w-full text-xs p-1 bg-background border border-input rounded"
+                              rows={2}
+                            />
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -445,7 +466,32 @@ export const Editor: React.FC = () => {
 
               {/* Translation Settings */}
               <div className="pt-2 border-t border-input mt-2">
-                <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Translation Text</h4>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase">Translation Text</h4>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer" 
+                      checked={store.customization.showTranslation}
+                      onChange={e => store.updateCustomization({ showTranslation: e.target.checked })}
+                    />
+                    <div className="w-7 h-4 bg-muted/60 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+                
+                {store.customization.showTranslation && (
+                  <>
+                    <div className="flex flex-col gap-1 mb-2">
+                      <span className="text-xs text-muted-foreground">Language</span>
+                      <select 
+                        value={store.customization.translationLanguage}
+                        onChange={e => store.updateCustomization({ translationLanguage: e.target.value as 'id' | 'en' })}
+                        className="bg-background border border-input rounded text-foreground text-xs p-1"
+                      >
+                        <option value="id">Indonesian (Kemenag)</option>
+                        <option value="en">English (Saheeh Intl)</option>
+                      </select>
+                    </div>
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <div className="flex flex-col gap-1">
                     <span className="text-xs text-muted-foreground">Font</span>
@@ -502,6 +548,8 @@ export const Editor: React.FC = () => {
                     </label>
                   </div>
                 </div>
+                </>
+              )}
               </div>
 
               {/* Position */}

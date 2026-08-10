@@ -246,28 +246,28 @@ export const Editor: React.FC = () => {
   return (
     <div className="flex flex-1 overflow-hidden">
       {/* Left panel: Controls */}
-      <div className="w-1/3 bg-gray-800 border-r border-gray-700 flex flex-col p-4 overflow-y-auto">
+      <div className="w-1/3 bg-card border-r border-border flex flex-col p-4 overflow-y-auto">
         <h2 className="text-xl font-bold mb-4">Project Editor</h2>
         
         <div className="space-y-6">
           <section>
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-400">Quran Data</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Quran Data</h3>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">Use API</span>
+                <span className="text-xs text-muted-foreground">Use API</span>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input type="checkbox" className="sr-only peer" checked={useQuranApi} onChange={e => setUseQuranApi(e.target.checked)} />
-                  <div className="w-7 h-4 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                  <div className="w-7 h-4 bg-muted/60 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary"></div>
                 </label>
               </div>
             </div>
             
-            <div className="bg-gray-700 p-3 rounded">
+            <div className="bg-muted p-3 rounded">
               {useQuranApi ? (
                 <>
                   <div className="flex flex-col gap-2">
                     <div className="w-full">
-                      <label className="block text-xs text-gray-400 mb-1">Surah</label>
+                      <label className="block text-xs text-muted-foreground mb-1">Surah</label>
                       <select 
                         value={surah} 
                         onChange={e => {
@@ -279,7 +279,7 @@ export const Editor: React.FC = () => {
                             if (parseInt(ayatEnd) > surahData.count) setAyatEnd(surahData.count.toString());
                           }
                         }} 
-                        className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm"
+                        className="w-full p-2 bg-background border border-input rounded text-foreground text-sm"
                       >
                         {SURAH_LIST.map(s => (
                           <option key={s.id} value={s.id.toString()}>{s.id}. {s.name} ({s.trans})</option>
@@ -287,11 +287,11 @@ export const Editor: React.FC = () => {
                       </select>
                     </div>
                     <div className="w-full">
-                      <label className="block text-xs text-gray-400 mb-1">Qari (Reciter)</label>
+                      <label className="block text-xs text-muted-foreground mb-1">Qari (Reciter)</label>
                       <select 
                         value={reciterId} 
                         onChange={e => setReciterId(e.target.value)}
-                        className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm"
+                        className="w-full p-2 bg-background border border-input rounded text-foreground text-sm"
                       >
                         {RECITER_LIST.map(r => (
                           <option key={r.id} value={r.id.toString()}>{r.name} ({r.style})</option>
@@ -300,12 +300,12 @@ export const Editor: React.FC = () => {
                     </div>
                     <div className="flex gap-2">
                       <div className="w-1/2">
-                        <label className="block text-xs text-gray-400 mb-1">Mulai Ayat</label>
-                        <input type="number" min="1" max={SURAH_LIST.find(s => s.id.toString() === surah)?.count || 286} value={ayatStart} onChange={e => setAyatStart(e.target.value)} placeholder="Start" className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white" />
+                        <label className="block text-xs text-muted-foreground mb-1">Mulai Ayat</label>
+                        <input type="number" min="1" max={SURAH_LIST.find(s => s.id.toString() === surah)?.count || 286} value={ayatStart} onChange={e => setAyatStart(e.target.value)} placeholder="Start" className="w-full p-2 bg-background border border-input rounded text-foreground" />
                       </div>
                       <div className="w-1/2">
-                        <label className="block text-xs text-gray-400 mb-1">Sampai Ayat</label>
-                        <input type="number" min="1" max={SURAH_LIST.find(s => s.id.toString() === surah)?.count || 286} value={ayatEnd} onChange={e => setAyatEnd(e.target.value)} placeholder="End" className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white" />
+                        <label className="block text-xs text-muted-foreground mb-1">Sampai Ayat</label>
+                        <input type="number" min="1" max={SURAH_LIST.find(s => s.id.toString() === surah)?.count || 286} value={ayatEnd} onChange={e => setAyatEnd(e.target.value)} placeholder="End" className="w-full p-2 bg-background border border-input rounded text-foreground" />
                       </div>
                     </div>
                   </div>
@@ -315,25 +315,25 @@ export const Editor: React.FC = () => {
                       id="autoFetchAudio"
                       checked={autoFetchAudio}
                       onChange={e => setAutoFetchAudio(e.target.checked)}
-                      className="rounded bg-gray-900 border-gray-600"
+                      className="rounded bg-background border-input"
                     />
-                    <label htmlFor="autoFetchAudio" className="text-xs text-gray-300">
+                    <label htmlFor="autoFetchAudio" className="text-xs text-muted-foreground">
                       Auto-Fetch Audio & Enable Batch Mode
                     </label>
                   </div>
-                  <button onClick={handleFetchAyat} disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded text-white font-medium transition disabled:opacity-50">
+                  <button onClick={handleFetchAyat} disabled={loading} className="w-full bg-primary hover:bg-primary/90 py-2 rounded text-primary-foreground font-medium transition disabled:opacity-50">
                     {loading ? 'Processing...' : (autoFetchAudio ? 'Fetch & Auto-Audio' : 'Fetch Quran Text')}
                   </button>
                 </>
               ) : (
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Teks Arab (Manual)</label>
-                    <textarea value={manualArabic} onChange={e => setManualArabic(e.target.value)} className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-right text-lg" rows={3} placeholder="Teks Arab..." dir="rtl" />
+                    <label className="block text-xs text-muted-foreground mb-1">Teks Arab (Manual)</label>
+                    <textarea value={manualArabic} onChange={e => setManualArabic(e.target.value)} className="w-full p-2 bg-background border border-input rounded text-foreground text-right text-lg" rows={3} placeholder="Teks Arab..." dir="rtl" />
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-400 mb-1">Terjemahan (Manual)</label>
-                    <textarea value={manualTranslation} onChange={e => setManualTranslation(e.target.value)} className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" rows={2} placeholder="Terjemahan..." />
+                    <label className="block text-xs text-muted-foreground mb-1">Terjemahan (Manual)</label>
+                    <textarea value={manualTranslation} onChange={e => setManualTranslation(e.target.value)} className="w-full p-2 bg-background border border-input rounded text-foreground text-sm" rows={2} placeholder="Terjemahan..." />
                   </div>
                   <div className="flex gap-2 mt-2">
                     <button onClick={handleSetManualText} className="w-1/2 bg-red-600 hover:bg-red-700 py-2 rounded text-white font-medium transition text-sm">
@@ -349,9 +349,9 @@ export const Editor: React.FC = () => {
           </section>
 
           <section>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-400 mb-2">Slides / Scenes</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-2">Slides / Scenes</h3>
             {store.slides.length === 0 ? (
-              <div className="text-xs text-gray-500 italic">No slides available. Fetch Quran data first.</div>
+              <div className="text-xs text-muted-foreground italic">No slides available. Fetch Quran data first.</div>
             ) : (
               <div className="space-y-2">
                 {store.slides.map((slide, idx) => {
@@ -362,14 +362,14 @@ export const Editor: React.FC = () => {
                   return (
                     <div 
                       key={slide.id} 
-                      className={`p-2 rounded cursor-pointer transition ${store.activeSlideId === slide.id ? 'bg-blue-900 border border-blue-500' : 'bg-gray-700 hover:bg-gray-600'}`} 
+                      className={`p-2 rounded cursor-pointer transition ${store.activeSlideId === slide.id ? 'bg-primary/20 border border-primary' : 'bg-muted hover:bg-muted/80'}`} 
                       onClick={() => store.setActiveSlideId(slide.id)}
                     >
                       <div className="flex justify-between items-start">
-                        <div className="text-xs text-white font-semibold">Slide {idx + 1} (Ayah {verse.ayah})</div>
+                        <div className="text-xs text-foreground font-semibold">Slide {idx + 1} (Ayah {verse.ayah})</div>
                         <button onClick={(e) => { e.stopPropagation(); store.removeSlide(slide.id); }} className="text-xs text-red-400 hover:text-red-300">Remove</button>
                       </div>
-                      <div className="text-xs text-gray-400 mt-1">Words: {slide.wordStartIndex + 1} to {slide.wordEndIndex} of {totalWords}</div>
+                      <div className="text-xs text-muted-foreground mt-1">Words: {slide.wordStartIndex + 1} to {slide.wordEndIndex} of {totalWords}</div>
                       {canSplit && (
                         <button 
                           onClick={(e) => { 
@@ -377,7 +377,7 @@ export const Editor: React.FC = () => {
                             const mid = slide.wordStartIndex + Math.floor((slide.wordEndIndex - slide.wordStartIndex) / 2);
                             store.splitSlide(slide.id, mid); 
                           }} 
-                          className="text-xs bg-gray-800 hover:bg-gray-700 text-blue-400 px-2 py-1 rounded mt-2 border border-gray-600 w-full"
+                          className="text-xs bg-card hover:bg-muted text-primary px-2 py-1 rounded mt-2 border border-input w-full"
                         >
                           Split in half
                         </button>
@@ -390,36 +390,36 @@ export const Editor: React.FC = () => {
           </section>
 
           <section>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-400 mb-2">Assets & Thumbnail</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-2">Assets & Thumbnail</h3>
             <div className="space-y-2">
-              <button onClick={handleImportAudio} className="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded transition flex flex-col items-center justify-center p-2 text-sm">
-                <span className="font-semibold text-white">Import Audio</span>
-                {store.audioPath && <span className="text-xs text-gray-400 mt-1 break-all px-2">{store.audioPath}</span>}
+              <button onClick={handleImportAudio} className="w-full bg-muted hover:bg-muted/80 py-2 rounded transition flex flex-col items-center justify-center p-2 text-sm">
+                <span className="font-semibold text-foreground">Import Audio</span>
+                {store.audioPath && <span className="text-xs text-muted-foreground mt-1 break-all px-2">{store.audioPath}</span>}
               </button>
-              <button onClick={handleImportBackground} className="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded transition flex flex-col items-center justify-center p-2 text-sm">
-                <span className="font-semibold text-white">Import Background</span>
-                {store.bgPath && <span className="text-xs text-gray-400 mt-1 break-all px-2">{store.bgPath}</span>}
+              <button onClick={handleImportBackground} className="w-full bg-muted hover:bg-muted/80 py-2 rounded transition flex flex-col items-center justify-center p-2 text-sm">
+                <span className="font-semibold text-foreground">Import Background</span>
+                {store.bgPath && <span className="text-xs text-muted-foreground mt-1 break-all px-2">{store.bgPath}</span>}
               </button>
-              <button onClick={handleImportThumbnail} className="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded transition flex flex-col items-center justify-center p-2 text-sm">
-                <span className="font-semibold text-white">Import Thumbnail (Optional)</span>
-                {store.customization.thumbnailPath && <span className="text-xs text-gray-400 mt-1 break-all px-2">{store.customization.thumbnailPath}</span>}
+              <button onClick={handleImportThumbnail} className="w-full bg-muted hover:bg-muted/80 py-2 rounded transition flex flex-col items-center justify-center p-2 text-sm">
+                <span className="font-semibold text-foreground">Import Thumbnail (Optional)</span>
+                {store.customization.thumbnailPath && <span className="text-xs text-muted-foreground mt-1 break-all px-2">{store.customization.thumbnailPath}</span>}
               </button>
             </div>
           </section>
 
           <section>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-400 mb-2">Customize</h3>
-            <div className="bg-gray-700 p-4 rounded space-y-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-2">Customize</h3>
+            <div className="bg-muted p-4 rounded space-y-4">
               {/* Arabic Settings */}
               <div className="pt-2">
-                <h4 className="text-xs font-semibold text-gray-400 mb-2 uppercase">Arabic Text</h4>
+                <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Arabic Text</h4>
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-300">Font</span>
+                    <span className="text-xs text-muted-foreground">Font</span>
                     <select 
                       value={store.customization.arabicFontFamily}
                       onChange={e => store.updateCustomization({ arabicFontFamily: e.target.value })}
-                      className="bg-gray-900 border border-gray-600 rounded text-white text-xs p-1"
+                      className="bg-background border border-input rounded text-foreground text-xs p-1"
                     >
                       <option value="Uthmanic">Uthmanic (Hafs)</option>
                       <option value="LPMQ">LPMQ (Kemenag)</option>
@@ -427,11 +427,11 @@ export const Editor: React.FC = () => {
                     </select>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-300">Color</span>
+                    <span className="text-xs text-muted-foreground">Color</span>
                     <input type="color" value={store.customization.arabicColor} onChange={e => store.updateCustomization({ arabicColor: e.target.value })} className="w-full h-[26px] bg-transparent border-0 cursor-pointer rounded" />
                   </div>
                 </div>
-                <div className="flex justify-between text-xs text-gray-300 mb-1">
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
                   <span>Size</span>
                   <span>{store.customization.arabicTextSize}%</span>
                 </div>
@@ -444,15 +444,15 @@ export const Editor: React.FC = () => {
               </div>
 
               {/* Translation Settings */}
-              <div className="pt-2 border-t border-gray-600 mt-2">
-                <h4 className="text-xs font-semibold text-gray-400 mb-2 uppercase">Translation Text</h4>
+              <div className="pt-2 border-t border-input mt-2">
+                <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase">Translation Text</h4>
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-300">Font</span>
+                    <span className="text-xs text-muted-foreground">Font</span>
                     <select 
                       value={store.customization.translationFontFamily}
                       onChange={e => store.updateCustomization({ translationFontFamily: e.target.value })}
-                      className="bg-gray-900 border border-gray-600 rounded text-white text-xs p-1"
+                      className="bg-background border border-input rounded text-foreground text-xs p-1"
                     >
                       <option value="sans-serif">Sans Serif</option>
                       <option value="serif">Serif</option>
@@ -460,11 +460,11 @@ export const Editor: React.FC = () => {
                     </select>
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-300">Color</span>
+                    <span className="text-xs text-muted-foreground">Color</span>
                     <input type="color" value={store.customization.translationColor} onChange={e => store.updateCustomization({ translationColor: e.target.value })} className="w-full h-[26px] bg-transparent border-0 cursor-pointer rounded" />
                   </div>
                 </div>
-                <div className="flex justify-between text-xs text-gray-300 mb-1">
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
                   <span>Size</span>
                   <span>{store.customization.translationTextSize}%</span>
                 </div>
@@ -477,7 +477,7 @@ export const Editor: React.FC = () => {
                 
                 <div className="flex flex-col gap-2 mt-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-300">Background Box</span>
+                    <span className="text-xs text-muted-foreground">Background Box</span>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input 
                         type="checkbox" 
@@ -485,12 +485,12 @@ export const Editor: React.FC = () => {
                         checked={store.customization.translationBackground}
                         onChange={e => store.updateCustomization({ translationBackground: e.target.checked })}
                       />
-                      <div className="w-7 h-4 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                      <div className="w-7 h-4 bg-muted/60 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary"></div>
                     </label>
                   </div>
                   
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-300">Show Separator</span>
+                    <span className="text-xs text-muted-foreground">Show Separator</span>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input 
                         type="checkbox" 
@@ -498,15 +498,15 @@ export const Editor: React.FC = () => {
                         checked={store.customization.showSeparator}
                         onChange={e => store.updateCustomization({ showSeparator: e.target.checked })}
                       />
-                      <div className="w-7 h-4 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                      <div className="w-7 h-4 bg-muted/60 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary"></div>
                     </label>
                   </div>
                 </div>
               </div>
 
               {/* Position */}
-              <div className="pt-2 border-t border-gray-600 mt-2">
-                <div className="flex justify-between text-sm text-gray-300 mb-1">
+              <div className="pt-2 border-t border-input mt-2">
+                <div className="flex justify-between text-sm text-muted-foreground mb-1">
                   <span>Global Y Position</span>
                   <span>{store.customization.textPositionY}%</span>
                 </div>
@@ -518,13 +518,13 @@ export const Editor: React.FC = () => {
                 />
               </div>
 
-              <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-gray-600">
+              <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-input">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-300">Watermark</span>
+                  <span className="text-sm text-muted-foreground">Watermark</span>
                   <select 
                     value={store.customization.watermarkType}
                     onChange={e => store.updateCustomization({ watermarkType: e.target.value as any })}
-                    className="bg-gray-900 border border-gray-600 rounded text-white text-xs px-2 py-1"
+                    className="bg-background border border-input rounded text-foreground text-xs px-2 py-1"
                   >
                     <option value="none">None</option>
                     <option value="text">Text</option>
@@ -536,7 +536,7 @@ export const Editor: React.FC = () => {
                     type="text" 
                     value={store.customization.watermarkText} 
                     onChange={e => store.updateCustomization({ watermarkText: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+                    className="w-full bg-background border border-input rounded px-2 py-1 text-sm text-foreground"
                     placeholder="Enter watermark text"
                   />
                 )}
@@ -550,11 +550,11 @@ export const Editor: React.FC = () => {
                           store.updateCustomization({ watermarkImage: selected });
                         }
                       }}
-                      className="bg-gray-700 hover:bg-gray-600 text-xs px-2 py-1 rounded text-white"
+                      className="bg-muted hover:bg-muted/80 text-xs px-2 py-1 rounded text-foreground"
                     >
                       Browse Logo...
                     </button>
-                    <span className="text-xs text-gray-400 truncate flex-1">
+                    <span className="text-xs text-muted-foreground truncate flex-1">
                       {store.customization.watermarkImage ? store.customization.watermarkImage.split(/[\\/]/).pop() : 'No image selected'}
                     </span>
                   </div>
@@ -562,7 +562,7 @@ export const Editor: React.FC = () => {
                 
                 {store.customization.watermarkType !== 'none' && (
                   <div className="mt-2">
-                    <div className="flex justify-between text-xs text-gray-400 mb-1">
+                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
                       <span>Watermark Y Pos</span>
                       <span>{store.customization.watermarkPositionY}%</span>
                     </div>
@@ -576,14 +576,14 @@ export const Editor: React.FC = () => {
                 )}
               </div>
 
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-600">
-                <span className="text-sm text-gray-300">Karaoke Mode</span>
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-input">
+                <span className="text-sm text-muted-foreground">Karaoke Mode</span>
                 <div className="flex items-center gap-4">
                   {store.customization.karaokeMode && (
                     <select 
                       value={store.customization.karaokeStyle}
                       onChange={e => store.updateCustomization({ karaokeStyle: e.target.value })}
-                      className="bg-gray-900 border border-gray-600 rounded text-white text-xs px-2 py-1"
+                      className="bg-background border border-input rounded text-foreground text-xs px-2 py-1"
                     >
                       <option value="pop">Pop (Yellow)</option>
                       <option value="hormozi">Hormozi (Green)</option>
@@ -599,7 +599,7 @@ export const Editor: React.FC = () => {
                       checked={store.customization.karaokeMode}
                       onChange={e => store.updateCustomization({ karaokeMode: e.target.checked })}
                     />
-                    <div className="w-9 h-5 bg-gray-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    <div className="w-9 h-5 bg-muted/60 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
                   </label>
                 </div>
               </div>
@@ -607,11 +607,11 @@ export const Editor: React.FC = () => {
           </section>
 
           <section>
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-400 mb-2">Template</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-2">Template</h3>
             <select 
               value={store.selectedTemplate}
               onChange={e => store.setSelectedTemplate(e.target.value)}
-              className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white"
+              className="w-full p-2 bg-background border border-input rounded text-foreground"
             >
               <option value="minimal">Minimal</option>
               <option value="cinematic">Cinematic</option>
@@ -622,20 +622,20 @@ export const Editor: React.FC = () => {
       </div>
 
       {/* Right panel: Preview & Actions */}
-      <div className="flex-1 bg-gray-900 flex flex-col p-4">
+      <div className="flex-1 bg-background flex flex-col p-4">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-4">
-            <h3 className="font-semibold text-gray-300">Preview (1080x1920)</h3>
-            <div className="flex items-center bg-gray-800 rounded overflow-hidden">
+            <h3 className="font-semibold text-muted-foreground">Preview (1080x1920)</h3>
+            <div className="flex items-center bg-card rounded overflow-hidden">
               <button 
                 onClick={() => { (previewRef.current as any)?.playPreview?.(); }}
-                className="px-3 py-1 hover:bg-gray-700 text-sm font-medium transition border-r border-gray-700 text-green-400"
+                className="px-3 py-1 hover:bg-muted text-sm font-medium transition border-r border-border text-green-400"
               >
                 Play
               </button>
               <button 
                 onClick={() => { (previewRef.current as any)?.pausePreview?.(); }}
-                className="px-3 py-1 hover:bg-gray-700 text-sm font-medium transition text-yellow-400"
+                className="px-3 py-1 hover:bg-muted text-sm font-medium transition text-yellow-400"
               >
                 Pause
               </button>
@@ -651,14 +651,14 @@ export const Editor: React.FC = () => {
               } catch (e) {
                 alert('Failed to save project');
               }
-            }} className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded transition text-white">Save</button>
-            <button onClick={handleGenerate} disabled={loading} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition font-medium text-white disabled:opacity-50">
+            }} className="bg-muted hover:bg-muted/80 px-4 py-2 rounded transition text-foreground">Save</button>
+            <button onClick={handleGenerate} disabled={loading} className="bg-primary hover:bg-primary/90 px-4 py-2 rounded transition font-medium text-primary-foreground disabled:opacity-50">
               {loading ? 'Processing...' : 'Add to Queue'}
             </button>
           </div>
         </div>
         
-        <div className="flex-1 flex justify-center items-center bg-black rounded-lg overflow-hidden border border-gray-700 p-4">
+        <div className="flex-1 flex justify-center items-center bg-black rounded-lg overflow-hidden border border-border p-4">
           <PreviewCanvas ref={previewRef} />
         </div>
       </div>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAppStore } from '../store';
 import { invoke } from '@tauri-apps/api/core';
+import { Button } from '../components/ui/button';
 
 const FakeProgress = ({ status }: { status: string }) => {
   const [progress, setProgress] = React.useState(0);
@@ -23,9 +24,9 @@ const FakeProgress = ({ status }: { status: string }) => {
 
   return (
     <div className="flex items-center gap-3 mt-2">
-      <div className="w-48 bg-gray-700 rounded-full h-2.5 overflow-hidden">
+      <div className="w-48 bg-muted rounded-full h-2.5 overflow-hidden">
         <div 
-          className={`h-2.5 rounded-full transition-all duration-500 ${status === 'done' ? 'bg-green-500' : 'bg-blue-600 relative'}`} 
+          className={`h-2.5 rounded-full transition-all duration-500 ${status === 'done' ? 'bg-primary' : 'bg-primary/80 relative'}`} 
           style={{ width: `${Math.min(progress, 100)}%` }}
         >
           {status === 'processing' && (
@@ -33,7 +34,7 @@ const FakeProgress = ({ status }: { status: string }) => {
           )}
         </div>
       </div>
-      <span className="text-xs text-gray-300 font-medium w-10 text-right">
+      <span className="text-xs text-muted-foreground font-medium w-10 text-right">
         {Math.round(Math.min(progress, 100))}%
       </span>
     </div>
@@ -58,39 +59,33 @@ export const Queue: React.FC = () => {
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-3xl font-bold">Render Queue</h2>
+        <h2 className="text-3xl font-bold text-foreground">Render Queue</h2>
         {pendingJobs.length > 0 && (
-          <button 
-            onClick={() => pendingJobs.forEach(handleProcess)}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white font-medium transition"
-          >
+          <Button onClick={() => pendingJobs.forEach(handleProcess)}>
             Process All Pending
-          </button>
+          </Button>
         )}
       </div>
       
-      <div className="bg-gray-800 rounded-lg shadow border border-gray-700 overflow-hidden">
+      <div className="bg-card rounded-lg shadow-sm border border-border overflow-hidden">
         {renderQueue.length === 0 ? (
-          <div className="p-6 text-center text-gray-400">
+          <div className="p-6 text-center text-muted-foreground">
             The render queue is empty.
           </div>
         ) : (
-          <ul className="divide-y divide-gray-700">
+          <ul className="divide-y divide-border">
             {renderQueue.map((job, idx) => (
-              <li key={idx} className="p-4 flex items-center justify-between">
+              <li key={idx} className="p-4 flex items-center justify-between hover:bg-muted/50 transition">
                 <div>
-                  <h4 className="font-semibold">{job.title}</h4>
-                  <p className="text-sm text-gray-400">Status: {job.status}</p>
-                  {job.error && <p className="text-sm text-red-400 mt-1">{job.error}</p>}
+                  <h4 className="font-semibold text-card-foreground">{job.title}</h4>
+                  <p className="text-sm text-muted-foreground">Status: {job.status}</p>
+                  {job.error && <p className="text-sm text-destructive mt-1">{job.error}</p>}
                 </div>
                 <div>
                   {job.status === 'pending' && (
-                    <button 
-                      onClick={() => handleProcess(job)}
-                      className="bg-green-600 hover:bg-green-700 px-4 py-1.5 rounded text-white text-sm font-medium transition"
-                    >
+                    <Button variant="secondary" size="sm" onClick={() => handleProcess(job)}>
                       Process
-                    </button>
+                    </Button>
                   )}
                   {(job.status === 'processing' || job.status === 'done') && (
                     <FakeProgress status={job.status} />

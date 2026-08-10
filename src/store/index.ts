@@ -83,6 +83,7 @@ interface AppState {
     watermarkText: string;
     watermarkImage: string | null;
     watermarkPositionY: number;
+    animationStyle: 'none' | 'fade';
   };
   updateCustomization: (newCust: Partial<AppState['customization']>) => void;
   clearProject: () => void;
@@ -228,6 +229,7 @@ export const useAppStore = create<AppState>((set) => ({
     watermarkText: 'Quran Render',
     watermarkImage: null,
     watermarkPositionY: 12,
+    animationStyle: 'none',
   },
   updateCustomization: (newCust) => set((state) => ({
     customization: { ...state.customization, ...newCust }
@@ -258,6 +260,7 @@ export const useAppStore = create<AppState>((set) => ({
       watermarkText: 'Quran Render',
       watermarkImage: null,
       watermarkPositionY: 12,
+      animationStyle: 'none',
     }
   })
 }));

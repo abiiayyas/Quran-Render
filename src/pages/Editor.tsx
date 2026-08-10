@@ -13,6 +13,7 @@ export const Editor: React.FC = () => {
   const previewRef = useRef<PreviewCanvasHandle>(null);
   
   const [surah, setSurah] = useState('1');
+  const [activeTab, setActiveTab] = useState<'data' | 'customize' | 'templates'>('data');
   const [ayatStart, setAyatStart] = useState('1');
   const [ayatEnd, setAyatEnd] = useState('2');
   const [loading, setLoading] = useState(false);
@@ -229,7 +230,8 @@ export const Editor: React.FC = () => {
           output_path: outputPath,
           overlay_base64: null,
           overlay_sequence: overlaySequence.length > 0 ? overlaySequence : null,
-          thumbnail_path: store.customization.thumbnailPath
+          thumbnail_path: store.customization.thumbnailPath,
+          animation_style: store.customization.animationStyle !== 'none' ? store.customization.animationStyle : null
         }
       });
       
@@ -246,11 +248,29 @@ export const Editor: React.FC = () => {
   return (
     <div className="flex flex-1 overflow-hidden">
       {/* Left panel: Controls */}
-      <div className="w-1/3 bg-card border-r border-border flex flex-col p-4 overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4">Project Editor</h2>
+      <div className="w-1/3 bg-card border-r border-border flex flex-col overflow-hidden">
+        <div className="p-4 border-b border-border">
+          <h2 className="text-xl font-bold mb-4">Project Editor</h2>
+          <div className="flex bg-muted p-1 rounded-md">
+            <button 
+              onClick={() => setActiveTab('data')}
+              className={`flex-1 py-1.5 text-sm font-medium rounded-sm transition-all ${activeTab === 'data' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >Data</button>
+            <button 
+              onClick={() => setActiveTab('customize')}
+              className={`flex-1 py-1.5 text-sm font-medium rounded-sm transition-all ${activeTab === 'customize' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >Customize</button>
+            <button 
+              onClick={() => setActiveTab('templates')}
+              className={`flex-1 py-1.5 text-sm font-medium rounded-sm transition-all ${activeTab === 'templates' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >Templates</button>
+          </div>
+        </div>
         
-        <div className="space-y-6">
-          <section>
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          {activeTab === 'data' && (
+            <>
+              <section>
             <div className="flex justify-between items-center mb-2">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Quran Data</h3>
               <div className="flex items-center gap-2">
@@ -427,7 +447,11 @@ export const Editor: React.FC = () => {
               </button>
             </div>
           </section>
+          </>
+          )}
 
+          {activeTab === 'customize' && (
+            <>
           <section>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-2">Customize</h3>
             <div className="bg-muted p-4 rounded space-y-4">
@@ -624,6 +648,20 @@ export const Editor: React.FC = () => {
                 )}
               </div>
 
+              <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-input">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Animation Style</span>
+                  <select 
+                    value={store.customization.animationStyle}
+                    onChange={e => store.updateCustomization({ animationStyle: e.target.value as any })}
+                    className="bg-background border border-input rounded text-foreground text-xs px-2 py-1"
+                  >
+                    <option value="none">None</option>
+                    <option value="fade">Fade In/Out</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-input">
                 <span className="text-sm text-muted-foreground">Karaoke Mode</span>
                 <div className="flex items-center gap-4">
@@ -653,7 +691,10 @@ export const Editor: React.FC = () => {
               </div>
             </div>
           </section>
+          </>
+          )}
 
+          {activeTab === 'templates' && (
           <section>
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-2">Template</h3>
             <select 
@@ -666,6 +707,7 @@ export const Editor: React.FC = () => {
               <option value="clean">Clean</option>
             </select>
           </section>
+          )}
         </div>
       </div>
 

@@ -57,9 +57,9 @@ export const Settings: React.FC = () => {
                   <input type="radio" name="theme" value="dark" checked={settings.theme === 'dark'} onChange={() => updateSettings({ theme: 'dark' })} />
                   <span className="text-foreground">Dark</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer opacity-50">
-                  <input type="radio" name="theme" value="light" disabled />
-                  <span className="text-foreground">Light (Coming Soon)</span>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="theme" value="light" checked={settings.theme === 'light'} onChange={() => updateSettings({ theme: 'light' })} />
+                  <span className="text-foreground">Light</span>
                 </label>
               </div>
             </div>

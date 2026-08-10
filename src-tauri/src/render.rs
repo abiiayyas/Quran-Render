@@ -31,6 +31,7 @@ pub struct RenderJob {
     pub overlay_base64: Option<String>,
     pub overlay_sequence: Option<Vec<OverlayFrame>>,
     pub thumbnail_path: Option<String>,
+    pub animation_style: Option<String>,
 }
 
 static mut WORKER_TX: Option<Sender<RenderJob>> = None;
@@ -159,20 +160,42 @@ fn execute_ffmpeg(job: &RenderJob) -> Result<(), String> {
             fs::write(&temp_overlay_path, decoded).map_err(|e| format!("Failed to write temp overlay: {}", e))?;
             temp_paths.push(temp_overlay_path.clone());
             
+            let start_sec = frame.start_ms as f32 / 1000.0;
+            let end_sec = frame.end_ms as f32 / 1000.0;
+            
+            let is_fade = job.animation_style.as_deref() == Some("fade");
+            
+            if is_fade {
+                args.push("-loop".to_string());
+                args.push("1".to_string());
+                args.push("-t".to_string());
+                args.push(format!("{}", end_sec + 0.5));
+            }
+            
             let input_index = 1 + job.audio_paths.len() + i;
             args.push("-i".to_string());
             args.push(temp_overlay_path.to_str().unwrap().to_string());
 
-            let start_sec = frame.start_ms as f32 / 1000.0;
-            let end_sec = frame.end_ms as f32 / 1000.0;
             let out_node = format!("v{}", i);
 
             // Add simple fade-in for the text layer. Note: This requires ffmpeg >= 4.3 for enable on fade. We can just use enable.
             // Using enable='between(t, start, end)'
-            filter_complex.push_str(&format!(
-                "[{}][{}:v]overlay=0:0:enable='between(t,{},{})'[{}]",
-                current_bg, input_index, start_sec, end_sec, out_node
-            ));
+            if is_fade {
+                let fade_out_start = (end_sec - 0.5).max(start_sec);
+                filter_complex.push_str(&format!(
+                    "[{}:v]format=yuva420p,fade=t=in:st={}:d=0.5:alpha=1,fade=t=out:st={}:d=0.5:alpha=1[v{}_faded];",
+                    input_index, start_sec, fade_out_start, i
+                ));
+                filter_complex.push_str(&format!(
+                    "[{}][v{}_faded]overlay=0:0:enable='between(t,{},{})'[{}]",
+                    current_bg, i, start_sec, end_sec, out_node
+                ));
+            } else {
+                filter_complex.push_str(&format!(
+                    "[{}][{}:v]overlay=0:0:enable='between(t,{},{})'[{}]",
+                    current_bg, input_index, start_sec, end_sec, out_node
+                ));
+            }
 
             if i < seq.len() - 1 {
                 filter_complex.push_str(";");

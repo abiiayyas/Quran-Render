@@ -8,7 +8,7 @@ export interface PreviewCanvasHandle extends HTMLDivElement {
 }
 
 export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
-  const { verses, slides, activeSlideId, bgPath, audioPath, isExporting } = useAppStore();
+  const { verses, slides, activeSlideId, bgPath, audioPath, isExporting, selectedTemplate } = useAppStore();
   const customization = useAppStore(state => state.customization);
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -106,9 +106,24 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
   const isVideoBg = bgPath?.toLowerCase().match(/\.(mp4|mov|webm)$/);
   const isImageBg = bgPath?.toLowerCase().match(/\.(jpg|jpeg|png|webp)$/);
 
+  // Template styles
+  const getTemplateOverlayClass = () => {
+    switch (selectedTemplate) {
+      case 'cinematic':
+        return 'bg-gradient-to-t from-black/80 via-black/30 to-transparent pb-32 pt-16';
+      case 'clean':
+        return 'bg-black/40 backdrop-blur-sm rounded-3xl p-8';
+      case 'minimal':
+      default:
+        return '';
+    }
+  };
+
+  const isFading = customization.animationStyle === 'fade' && !isExporting;
+
   return (
-    <div ref={wrapperRef} className="w-full h-full flex justify-center items-center overflow-hidden">
-      <div className="relative flex-shrink-0" style={{ width: `${1080 * scale}px`, height: `${1920 * scale}px` }}>
+    <div ref={wrapperRef} className="w-full h-full flex justify-center items-center overflow-hidden bg-black">
+      <div className="relative flex-shrink-0 bg-zinc-900" style={{ width: `${1080 * scale}px`, height: `${1920 * scale}px` }}>
         <div 
           ref={containerRef}
           className="preview-canvas-container absolute top-0 left-0 flex flex-col items-center justify-center overflow-hidden"
@@ -147,9 +162,21 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
         {/* Text Overlay Layer */}
         {verse ? (
           <div 
-            className="absolute w-full px-16 flex flex-col items-center gap-12"
-            style={{ top: topPosition, transform: 'translateY(-50%)' }}
+            key={`${activeSlideId}-${customization.animationStyle}`}
+            className={`absolute w-full px-16 flex flex-col items-center gap-12 ${getTemplateOverlayClass()} ${isFading ? 'animate-in fade-in duration-500' : ''}`}
+            style={{ 
+              top: selectedTemplate === 'cinematic' ? 'auto' : topPosition, 
+              bottom: selectedTemplate === 'cinematic' ? '0' : 'auto',
+              transform: selectedTemplate === 'cinematic' ? 'none' : 'translateY(-50%)',
+              animation: isFading ? 'fadeIn 0.5s ease-in-out' : 'none'
+            }}
           >
+            <style>{`
+              @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+              }
+            `}</style>
             <div 
               dir="rtl" 
               className="font-bold leading-tight text-center w-full flex justify-center flex-wrap gap-x-4" 

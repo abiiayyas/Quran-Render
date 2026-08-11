@@ -3,24 +3,23 @@ import { useAppStore } from '../store';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../components/ui/button';
 
-const FakeProgress = ({ status }: { status: string }) => {
-  const [progress, setProgress] = React.useState(0);
+// Display progress. Uses the real value from the Rust worker when available;
+// otherwise falls back to a slow estimate that never stalls at a bogus cap.
+const FakeProgress = ({ status, jobProgress }: { status: string; jobProgress?: number }) => {
+  const [estimate, setEstimate] = React.useState(0);
   
   React.useEffect(() => {
     if (status === 'processing') {
-      setProgress(10); // Start at 10%
+      setEstimate(5); // Start above zero for visible feedback
       const interval = setInterval(() => {
-        setProgress(p => {
-          if (p >= 95) return p;
-          // Increment randomly between 2 and 8
-          return p + (Math.random() * 6 + 2);
-        });
-      }, 2000);
+        setEstimate(p => Math.min(95, p + (Math.random() * 1.5 + 0.5)));
+      }, 1500);
       return () => clearInterval(interval);
-    } else if (status === 'done') {
-      setProgress(100);
     }
   }, [status]);
+
+  // Real progress, else estimate, else 0. Done is always 100.
+  const progress = status === 'done' ? 100 : Math.max(status === 'processing' ? estimate : 0, jobProgress ?? 0);
 
   return (
     <div className="flex items-center gap-3 mt-2">
@@ -88,7 +87,7 @@ export const Queue: React.FC = () => {
                     </Button>
                   )}
                   {(job.status === 'processing' || job.status === 'done') && (
-                    <FakeProgress status={job.status} />
+                    <FakeProgress status={job.status} jobProgress={job.progress} />
                   )}
                 </div>
               </li>

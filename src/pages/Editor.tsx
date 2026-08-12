@@ -3,6 +3,7 @@ import { useAppStore } from '../store';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeFile, readFile } from '@tauri-apps/plugin-fs';
 import { toPng } from 'html-to-image';
+import { getFontEmbedCSS } from '../utils/fontEmbed';
 import { PreviewCanvas, PreviewCanvasHandle } from '../components/PreviewCanvas';
 import { getAudioDuration } from '../utils/audio';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
@@ -56,7 +57,8 @@ export const Editor: React.FC = () => {
       setGeneratingThumb(true);
       const baseW = store.customization.videoOrientation === 'landscape' ? 1920 : 1080;
       const baseH = store.customization.videoOrientation === 'landscape' ? 1080 : 1920;
-      const dataUrl = await toPng(el, { width: baseW, height: baseH, cacheBust: true, backgroundColor: '#000000' });
+      const fontEmbedCSS = await getFontEmbedCSS();
+      const dataUrl = await toPng(el, { width: baseW, height: baseH, cacheBust: true, backgroundColor: '#000000', fontEmbedCSS });
       const base64Data = dataUrl.replace(/^data:image\/png;base64,/, "");
       
       const binaryString = window.atob(base64Data);
@@ -201,6 +203,10 @@ export const Editor: React.FC = () => {
       // We need to render the canvas at baseW x baseH without scaling for the export.
       const el = previewRef.current;
 
+      // Pre-load font embed CSS so Arabic fonts (LPMQ, Uthmanic) render
+      // correctly in the exported PNG frames.
+      const fontEmbedCSS = await getFontEmbedCSS();
+
       if (store.slides.length === 0) {
         throw new Error("No slides to render. Fetch data first.");
       }
@@ -211,8 +217,14 @@ export const Editor: React.FC = () => {
 
       const uniqueVerseIndices = Array.from(new Set(store.slides.map(s => s.verseIndex)));
       uniqueVerseIndices.sort((a,b) => a - b);
+
+      // Determine which verse is first and last for fade-in/fade-out.
+      const firstVerseIndex = uniqueVerseIndices[0];
+      const lastVerseIndex = uniqueVerseIndices[uniqueVerseIndices.length - 1];
+      const fadeDuration = store.customization.fadeDuration;
       
-      for (const vIndex of uniqueVerseIndices) {
+      for (let vPos = 0; vPos < uniqueVerseIndices.length; vPos++) {
+        const vIndex = uniqueVerseIndices[vPos];
         const verse = store.verses[vIndex];
         const vAudioPath = verse.audioPath || store.audioPath;
         if (!vAudioPath) {
@@ -220,9 +232,15 @@ export const Editor: React.FC = () => {
         }
         audioPaths.push(vAudioPath);
         
+        const isFirstVerse = vIndex === firstVerseIndex;
+        const isLastVerse = vIndex === lastVerseIndex;
         const verseSlides = store.slides.filter(s => s.verseIndex === vIndex);
         
-        for (const slide of verseSlides) {
+        for (let slideIdx = 0; slideIdx < verseSlides.length; slideIdx++) {
+          const slide = verseSlides[slideIdx];
+          const isFirstSlideOfFirstVerse = isFirstVerse && slideIdx === 0;
+          const isLastSlideOfLastVerse = isLastVerse && slideIdx === verseSlides.length - 1;
+
           store.setActiveSlideId(slide.id);
           // Wait for React to render the active slide text
           await new Promise(res => setTimeout(res, 200)); 
@@ -237,7 +255,8 @@ export const Editor: React.FC = () => {
             const baseFrameUrl = await toPng(el, {
               width: baseW, height: baseH, cacheBust: true, backgroundColor: 'transparent',
               style: { transform: 'scale(1)', transformOrigin: 'top left', background: 'transparent' },
-              pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer'
+              pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer',
+              fontEmbedCSS
             });
 
             let previous_end_ms = 0;
@@ -246,8 +265,9 @@ export const Editor: React.FC = () => {
                 base64: baseFrameUrl.replace(/^data:image\/png;base64,/, ""),
                 start_ms: Math.round(cumulativeAudioDurationMs + 0),
                 end_ms: Math.round(cumulativeAudioDurationMs + displayWords[0].start_ms),
-                fade_in: true,
-                fade_out: false
+                fade_in: isFirstSlideOfFirstVerse,
+                fade_out: false,
+                fade_duration: fadeDuration
               });
               previous_end_ms = displayWords[0].start_ms;
             }
@@ -263,22 +283,26 @@ export const Editor: React.FC = () => {
               const frameDataUrl = await toPng(el, {
                 width: baseW, height: baseH, cacheBust: true, backgroundColor: 'transparent',
                 style: { transform: 'scale(1)', transformOrigin: 'top left', background: 'transparent' },
-                pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer'
+                pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer',
+                fontEmbedCSS
               });
               
               const start_time = word.start_ms;
               const next_word = displayWords[i + 1];
               const end_time = next_word?.start_ms ?? (verse.audioDurationMs || 5000);
               
-              const is_first = i === 0 && previous_end_ms === 0;
-              const is_last = i === displayWords.length - 1;
+              // Fade-in only on the very first frame of the first verse
+              const shouldFadeIn = isFirstSlideOfFirstVerse && i === 0 && previous_end_ms === 0;
+              // Fade-out only on the very last frame of the last verse
+              const shouldFadeOut = isLastSlideOfLastVerse && i === displayWords.length - 1;
 
               overlaySequence.push({
                 base64: frameDataUrl.replace(/^data:image\/png;base64,/, ""),
                 start_ms: Math.round(cumulativeAudioDurationMs + start_time),
                 end_ms: Math.round(cumulativeAudioDurationMs + end_time),
-                fade_in: is_first,
-                fade_out: is_last
+                fade_in: shouldFadeIn,
+                fade_out: shouldFadeOut,
+                fade_duration: fadeDuration
               });
             }
             store.updateCustomization({ highlightWordIndex: null });
@@ -294,15 +318,17 @@ export const Editor: React.FC = () => {
              const frameDataUrl = await toPng(el, {
                 width: baseW, height: baseH, cacheBust: true, backgroundColor: 'transparent',
                 style: { transform: 'scale(1)', transformOrigin: 'top left', background: 'transparent' },
-                pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer'
+                pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer',
+                fontEmbedCSS
              });
              
              overlaySequence.push({
                base64: frameDataUrl.replace(/^data:image\/png;base64,/, ""),
                start_ms: Math.round(cumulativeAudioDurationMs + startMs),
                end_ms: Math.round(cumulativeAudioDurationMs + endMs),
-               fade_in: true,
-               fade_out: true
+               fade_in: isFirstSlideOfFirstVerse,
+               fade_out: isLastSlideOfLastVerse,
+               fade_duration: fadeDuration
              });
           }
         }
@@ -329,7 +355,8 @@ export const Editor: React.FC = () => {
           thumbnail_path: store.customization.thumbnailPath,
           animation_style: store.customization.animationStyle !== 'none' ? store.customization.animationStyle : null,
           orientation: store.customization.videoOrientation,
-          duration: store.customization.videoDuration !== null ? store.customization.videoDuration : null
+          duration: store.customization.videoDuration !== null ? store.customization.videoDuration : null,
+          fade_duration: fadeDuration
         }
       });
       
@@ -799,6 +826,23 @@ export const Editor: React.FC = () => {
                     <option value="fade">Fade In/Out</option>
                   </select>
                 </div>
+                {store.customization.animationStyle === 'fade' && (
+                  <div className="mt-1">
+                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                      <span>Fade Duration</span>
+                      <span>{store.customization.fadeDuration.toFixed(1)}s</span>
+                    </div>
+                    <input 
+                      type="range" min="0.3" max="2.0" step="0.1"
+                      value={store.customization.fadeDuration} 
+                      onChange={e => store.updateCustomization({ fadeDuration: parseFloat(e.target.value) })}
+                      className="w-full h-1"
+                    />
+                    <div className="text-[10px] text-muted-foreground mt-1 italic">
+                      Fade-in pada ayat pertama, fade-out pada ayat terakhir
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-input">

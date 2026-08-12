@@ -1,6 +1,7 @@
 use std::process::Command as ProcessCommand;
 use serde::{Deserialize, Serialize};
 use std::sync::mpsc::{self, Sender, Receiver};
+use std::sync::OnceLock;
 use std::thread;
 use tauri::Emitter;
 use std::fs;
@@ -13,6 +14,7 @@ pub struct OverlayFrame {
     pub end_ms: u32,
     pub fade_in: Option<bool>,
     pub fade_out: Option<bool>,
+    pub fade_duration: Option<f32>,
 }
 
 #[derive(Serialize, Clone)]
@@ -36,19 +38,19 @@ pub struct RenderJob {
     pub animation_style: Option<String>,
     pub orientation: Option<String>,
     pub duration: Option<u32>,
+    pub fade_duration: Option<f32>,
 }
 
-static mut WORKER_TX: Option<Sender<RenderJob>> = None;
+// Thread-safe channel using OnceLock instead of unsafe static mut.
+static WORKER_TX: OnceLock<Sender<RenderJob>> = OnceLock::new();
 
 pub fn init_background_worker(app: &mut tauri::App) {
     let (tx, rx): (Sender<RenderJob>, Receiver<RenderJob>) = mpsc::channel();
-    
-    unsafe {
-        WORKER_TX = Some(tx);
-    }
-    
+
+    WORKER_TX.set(tx).expect("Worker already initialised");
+
     let app_handle = app.handle().clone();
-    
+
     thread::spawn(move || {
         loop {
             if let Ok(job) = rx.recv() {
@@ -82,24 +84,18 @@ pub fn init_background_worker(app: &mut tauri::App) {
 }
 
 #[tauri::command]
-#[allow(static_mut_refs)]
 pub fn enqueue_render(app_handle: tauri::AppHandle, job: RenderJob) -> Result<String, String> {
-    unsafe {
-        if let Some(tx) = WORKER_TX.clone() {
-            tx.send(job.clone()).map_err(|e| format!("Failed to enqueue job: {}", e))?;
-            
-            let _ = app_handle.emit("render-status", RenderStatusEvent {
-                job_id: job.id.clone(),
-                status: "pending".to_string(),
-                progress: 0,
-                error: None,
-            });
+    let tx = WORKER_TX.get().ok_or("Worker not initialized")?;
+    tx.send(job.clone()).map_err(|e| format!("Failed to enqueue job: {}", e))?;
 
-            Ok(format!("Job {} added to queue", job.id))
-        } else {
-            Err("Worker not initialized".to_string())
-        }
-    }
+    let _ = app_handle.emit("render-status", RenderStatusEvent {
+        job_id: job.id.clone(),
+        status: "pending".to_string(),
+        progress: 0,
+        error: None,
+    });
+
+    Ok(format!("Job {} added to queue", job.id))
 }
 
 fn get_ffmpeg_path() -> String {
@@ -110,6 +106,19 @@ fn get_ffmpeg_path() -> String {
         }
     }
     "ffmpeg".to_string()
+}
+
+// Shared progress state — a single AtomicU8 used by both getter and setter.
+static PROGRESS_STATE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+fn progress_state() -> u8 {
+    PROGRESS_STATE.load(std::sync::atomic::Ordering::Relaxed)
+}
+fn set_progress_state(v: u8) {
+    PROGRESS_STATE.store(v, std::sync::atomic::Ordering::Relaxed);
+}
+fn reset_progress_state() {
+    PROGRESS_STATE.store(0, std::sync::atomic::Ordering::Relaxed);
 }
 
 // Run ffmpeg with a hard timeout so a stuck filtergraph can never hang the
@@ -172,16 +181,6 @@ fn run_ffmpeg_with_timeout(
     }
 }
 
-// Keep last emitted progress so we only emit when it actually increases.
-fn progress_state() -> u8 {
-    static LAST: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
-    LAST.load(std::sync::atomic::Ordering::Relaxed)
-}
-fn set_progress_state(v: u8) {
-    static LAST: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
-    LAST.store(v, std::sync::atomic::Ordering::Relaxed);
-}
-
 fn read_child_stderr(child: &mut std::process::Child) -> String {
     use std::io::Read;
     if let Some(ref mut stderr) = child.stderr {
@@ -211,18 +210,32 @@ fn probe_audio_duration_ms(path: &str) -> u64 {
 
 fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), String> {
     println!("Starting render job: {}", job.id);
-    
+
+    // Reset progress for this new job.
+    reset_progress_state();
+
     let temp_dir = std::env::temp_dir();
-    
-    let is_image = job.bg_path.to_lowercase().ends_with(".png") 
-                || job.bg_path.to_lowercase().ends_with(".jpg") 
+
+    let is_image = job.bg_path.to_lowercase().ends_with(".png")
+                || job.bg_path.to_lowercase().ends_with(".jpg")
                 || job.bg_path.to_lowercase().ends_with(".jpeg");
-    let is_video = job.bg_path.to_lowercase().ends_with(".mp4") 
-                || job.bg_path.to_lowercase().ends_with(".mov") 
+    let is_video = job.bg_path.to_lowercase().ends_with(".mp4")
+                || job.bg_path.to_lowercase().ends_with(".mov")
                 || job.bg_path.to_lowercase().ends_with(".webm");
 
-    let mut args = vec!["-y".to_string()];
-    
+    // Compute total audio length early — needed for -t and progress tracking.
+    let total_ms: u64 = job.audio_paths.iter().map(|p| probe_audio_duration_ms(p)).sum();
+    let total_duration_secs = job.duration.unwrap_or((total_ms as f32 / 1000.0).ceil().max(1.0) as u32);
+
+    // Global fade duration from job or default 0.5s.
+    let default_fade_dur: f32 = job.fade_duration.unwrap_or(0.5);
+
+    let mut args = vec![
+        "-y".to_string(),
+        "-loglevel".to_string(),
+        "error".to_string(),
+    ];
+
     if is_image {
         args.push("-loop".to_string());
         args.push("1".to_string());
@@ -230,10 +243,10 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
         args.push("-stream_loop".to_string());
         args.push("-1".to_string());
     }
-    
+
     args.push("-i".to_string());
     args.push(job.bg_path.clone());
-    
+
     for audio_path in &job.audio_paths {
         args.push("-i".to_string());
         args.push(audio_path.clone());
@@ -255,10 +268,21 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
         String::new()
     };
 
+    // Background scaling — use pad as safety net to guarantee exact output size.
     if job.orientation.as_deref() == Some("landscape") {
-        filter_complex.push_str("[0:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,fps=25,setsar=1,format=yuv420p[bg];");
+        filter_complex.push_str(
+            "[0:v]scale=1920:1080:force_original_aspect_ratio=increase,\
+             crop=1920:1080,\
+             pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,\
+             fps=25,setsar=1,format=yuv420p[bg];"
+        );
     } else {
-        filter_complex.push_str("[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=25,setsar=1,format=yuv420p[bg];");
+        filter_complex.push_str(
+            "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,\
+             crop=1080:1920,\
+             pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,\
+             fps=25,setsar=1,format=yuv420p[bg];"
+        );
     }
     let mut current_bg = "bg".to_string();
     let mut temp_paths = Vec::new();
@@ -269,35 +293,66 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
             let decoded = base64::engine::general_purpose::STANDARD.decode(&frame.base64).map_err(|e| format!("Base64 decode error: {}", e))?;
             fs::write(&temp_overlay_path, decoded).map_err(|e| format!("Failed to write temp overlay: {}", e))?;
             temp_paths.push(temp_overlay_path.clone());
-            
-            let start_sec = frame.start_ms as f32 / 1000.0;
-            let end_sec = frame.end_ms as f32 / 1000.0;
-            
-            let do_fade_in = job.animation_style.as_deref() == Some("fade") && frame.fade_in.unwrap_or(true);
-            let do_fade_out = job.animation_style.as_deref() == Some("fade") && frame.fade_out.unwrap_or(true);
-            
+
+            let start_sec = frame.start_ms as f64 / 1000.0;
+            let end_sec = frame.end_ms as f64 / 1000.0;
+            let overlay_dur = (end_sec - start_sec).max(0.04); // at least 1 frame at 25fps
+
+            let do_fade_in = job.animation_style.as_deref() == Some("fade") && frame.fade_in.unwrap_or(false);
+            let do_fade_out = job.animation_style.as_deref() == Some("fade") && frame.fade_out.unwrap_or(false);
+
+            // Per-frame fade duration, falling back to global default.
+            let fade_dur = frame.fade_duration.unwrap_or(default_fade_dur) as f64;
+
             let input_index = 1 + job.audio_paths.len() + i;
             args.push("-i".to_string());
             args.push(temp_overlay_path.to_str().unwrap().to_string());
 
             let out_node = format!("v{}", i);
 
-            let mut filter = format!("[{}:v]loop=-1:1:0,setpts=N/25/TB,format=yuva420p", input_index);
-            
+            // Strategy: generate exactly the needed duration from a single
+            // PNG frame, apply fade with *relative* (0-based) timestamps,
+            // then shift the PTS so the overlay lands at the correct
+            // absolute position in the timeline.
+            //
+            // 1. loop the single frame to fill `overlay_dur` seconds
+            // 2. trim to exactly `overlay_dur`
+            // 3. set PTS starting at 0 (relative timeline)
+            // 4. convert to yuva420p for alpha-aware overlay
+            // 5. apply fade-in/out using relative st values (0-based)
+            // 6. shift PTS to absolute position with setpts=PTS+start_sec
+            //
+            // The overlay filter uses enable='between(t,start,end)' for
+            // safety, but because the PTS is already shifted the overlay
+            // frames naturally fall into the right window.
+
+            let loop_frames = ((overlay_dur * 25.0).ceil() as u64).max(1);
+
+            let mut filter = format!(
+                "[{}:v]loop={}:1:0,trim=duration={:.4},setpts=PTS-STARTPTS,format=yuva420p",
+                input_index, loop_frames, overlay_dur
+            );
+
             if do_fade_in || do_fade_out {
-                let fade_out_start = (end_sec - 0.5).max(start_sec);
                 if do_fade_in {
-                    filter.push_str(&format!(",fade=t=in:st={}:d=0.5:alpha=1", start_sec));
+                    let fd = fade_dur.min(overlay_dur);
+                    filter.push_str(&format!(",fade=t=in:st=0:d={:.3}:alpha=1", fd));
                 }
                 if do_fade_out {
-                    filter.push_str(&format!(",fade=t=out:st={}:d=0.5:alpha=1", fade_out_start));
+                    let fd = fade_dur.min(overlay_dur);
+                    let fade_out_start = (overlay_dur - fd).max(0.0);
+                    filter.push_str(&format!(",fade=t=out:st={:.4}:d={:.3}:alpha=1", fade_out_start, fd));
                 }
             }
+
+            // Shift PTS to the absolute start position.
+            filter.push_str(&format!(",setpts=PTS+{:.4}/TB", start_sec));
+
             filter.push_str(&format!("[v{}_processed];", i));
-            
+
             filter_complex.push_str(&filter);
             filter_complex.push_str(&format!(
-                "[{}][v{}_processed]overlay=0:0:enable='between(t,{},{})'[{}]",
+                "[{}][v{}_processed]overlay=0:0:enable='between(t,{:.4},{:.4})'[{}]",
                 current_bg, i, start_sec, end_sec, out_node
             ));
 
@@ -314,10 +369,15 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
 
         args.push("-i".to_string());
         args.push(temp_overlay_path.to_str().unwrap().to_string());
-        
+
         let overlay_idx = 1 + job.audio_paths.len();
-        filter_complex.push_str(&format!("[{}:v]loop=-1:1:0,setpts=N/25/TB,format=yuva420p[v_overlay];", overlay_idx));
-        filter_complex.push_str(&format!("[{}][v_overlay]overlay=0:0:shortest=1[vfinal]", current_bg));
+        // For single overlay, generate enough frames for total duration then trim.
+        let loop_frames = ((total_duration_secs as u64 + 1) * 25).max(1);
+        filter_complex.push_str(&format!(
+            "[{}:v]loop={}:1:0,trim=duration={},setpts=PTS-STARTPTS,format=yuva420p[v_overlay];",
+            overlay_idx, loop_frames, total_duration_secs
+        ));
+        filter_complex.push_str(&format!("[{}][v_overlay]overlay=0:0[vfinal]", current_bg));
         current_bg = "vfinal".to_string();
     } else {
         return Err("No overlay provided".to_string());
@@ -325,8 +385,6 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
 
     args.push("-filter_complex".to_string());
     args.push(filter_complex);
-    args.push("-loglevel".to_string());
-    args.push("error".to_string());
     args.push("-map".to_string());
     args.push(format!("[{}]", current_bg));
     if has_audio {
@@ -342,10 +400,8 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
     // Always cut with -t (never -shortest). With infinite video sources
     // (looped bg + looped overlays), -shortest is unreliable at flushing the
     // muxer and the render hangs near the end. Compute total audio length.
-    let total_ms: u64 = job.audio_paths.iter().map(|p| probe_audio_duration_ms(p)).sum();
-    let explicit = job.duration.unwrap_or((total_ms as f32 / 1000.0).ceil().max(1.0) as u32);
     args.push("-t".to_string());
-    args.push(explicit.to_string());
+    args.push(total_duration_secs.to_string());
 
     args.push("-progress".to_string());
     args.push("pipe:1".to_string());
@@ -394,7 +450,7 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
     for path in temp_paths {
         let _ = fs::remove_file(&path);
     }
-        
+
     match status {
         Ok(s) if s.0 => Ok(()),
         Ok(s) => Err(format!("Render failed: {}", s.1.trim())),

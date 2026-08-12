@@ -31,6 +31,7 @@ pub fn init_db(app: &mut App) -> Result<Connection> {
             arabic TEXT NOT NULL,
             translation TEXT NOT NULL,
             words_json TEXT,
+            translation_en TEXT,
             PRIMARY KEY (surah, ayah)
         )",
         [],

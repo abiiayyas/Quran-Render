@@ -84,6 +84,7 @@ interface AppState {
     watermarkImage: string | null;
     watermarkPositionY: number;
     animationStyle: 'none' | 'fade';
+    fadeDuration: number;
     videoOrientation: 'vertical' | 'landscape';
     videoDuration: number | null;
   };
@@ -232,6 +233,7 @@ export const useAppStore = create<AppState>((set) => ({
     watermarkImage: null,
     watermarkPositionY: 12,
     animationStyle: 'none',
+    fadeDuration: 0.5,
     videoOrientation: 'vertical',
     videoDuration: null,
   },
@@ -265,6 +267,7 @@ export const useAppStore = create<AppState>((set) => ({
       watermarkImage: null,
       watermarkPositionY: 12,
       animationStyle: 'none',
+      fadeDuration: 0.5,
       videoOrientation: 'vertical',
       videoDuration: null,
     }

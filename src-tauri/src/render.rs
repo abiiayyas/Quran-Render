@@ -305,6 +305,8 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
                 current_input_index += 1;
             }
         } else {
+            args.push("-threads".to_string());
+            args.push("1".to_string());
             args.push("-i".to_string());
             args.push(audio_path.clone());
             audio_input_indices.push(current_input_index);
@@ -368,6 +370,8 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
             let fade_dur = frame.fade_duration.unwrap_or(default_fade_dur) as f64;
 
             let input_index = 1 + job.audio_paths.len() + i;
+            args.push("-threads".to_string());
+            args.push("1".to_string());
             args.push("-i".to_string());
             args.push(temp_overlay_path.to_str().unwrap().to_string());
 
@@ -430,6 +434,8 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
         fs::write(&temp_overlay_path, decoded).map_err(|e| format!("Failed to write temp overlay: {}", e))?;
         temp_paths.push(temp_overlay_path.clone());
 
+        args.push("-threads".to_string());
+        args.push("1".to_string());
         args.push("-i".to_string());
         args.push(temp_overlay_path.to_str().unwrap().to_string());
 

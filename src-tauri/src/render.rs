@@ -140,12 +140,22 @@ fn run_ffmpeg_with_timeout(
     total_ms: u64,
     on_progress: std::sync::Arc<dyn Fn(u8) + Send + Sync>,
 ) -> Result<(bool, String), String> {
-    let max_secs = 30 * 60;
+    let max_secs = 2 * 60 * 60; // 2h — long renders run single-threaded (see -filter_threads 1), so be generous.
     let sleep = std::time::Duration::from_millis(500);
+
+    // Redirect ffmpeg stderr to a temp file instead of a pipe. Long renders
+    // write enough stderr to fill the OS pipe buffer (64KB); if nothing drains
+    // it, ffmpeg blocks forever mid-render and the job stalls/looks hung.
+    // Writing to a file never blocks. Read it back only at the end for errors.
+    let stderr_file_path = std::env::temp_dir()
+        .join(format!("qr_stderr_{}.log", std::process::id()));
+    let stderr_file = std::fs::File::create(&stderr_file_path)
+        .map_err(|e| format!("Failed to create stderr temp file: {}", e))?;
+
     let mut child = ProcessCommand::new(bin)
         .args(args)
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::from(stderr_file))
         .spawn()
         .map_err(|e| format!("FFmpeg spawn error: {}", e))?;
 
@@ -160,8 +170,9 @@ fn run_ffmpeg_with_timeout(
             while reader.read_line(&mut buf).is_ok() {
                 if buf.is_empty() { break; }
                 let kvs: Vec<&str> = buf.split('=').collect();
-                if kvs.len() == 2 && kvs[0] == "out_time_ms" {
-                    if let Ok(ms) = kvs[1].trim().parse::<u64>() {
+                if kvs.len() == 2 && kvs[0] == "out_time_us" {
+                    if let Ok(us) = kvs[1].trim().parse::<u64>() {
+                        let ms = us / 1000;
                         let pct = ((ms as f64 / total_ms as f64) * 100.0).min(99.0) as u8;
                         if pct > progress_state() {
                             set_progress_state(pct);
@@ -178,27 +189,20 @@ fn run_ffmpeg_with_timeout(
     loop {
         if let Some(status) = child.try_wait().map_err(|e| format!("wait error: {}", e))? {
             let _ = filter_thread.join();
-            let stderr = read_child_stderr(&mut child);
+            let stderr = std::fs::read_to_string(&stderr_file_path).unwrap_or_default();
+            let _ = std::fs::remove_file(&stderr_file_path);
             return Ok((status.success(), stderr));
         }
         if std::time::Instant::now() > wait_until {
             let _ = child.kill();
             let _ = child.wait();
             let _ = filter_thread.join();
-            return Err("FFmpeg timed out after 30 minutes (filtergraph likely stalled)".to_string());
+            let stderr = std::fs::read_to_string(&stderr_file_path).unwrap_or_default();
+            let _ = std::fs::remove_file(&stderr_file_path);
+            return Err(format!("FFmpeg timed out after 30 minutes (filtergraph likely stalled): {}", stderr.trim()));
         }
         std::thread::sleep(sleep);
     }
-}
-
-fn read_child_stderr(child: &mut std::process::Child) -> String {
-    use std::io::Read;
-    if let Some(ref mut stderr) = child.stderr {
-        let mut buf = Vec::new();
-        let _ = stderr.take(8192).read_to_end(&mut buf);
-        return String::from_utf8_lossy(&buf).to_string();
-    }
-    String::new()
 }
 
 // Total duration of an audio file in ms, parsed from ffprobe. Falls back to 0
@@ -268,6 +272,17 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
         "-y".to_string(),
         "-loglevel".to_string(),
         "error".to_string(),
+        // Force a single-threaded filtergraph. Every slide is fed as its own
+        // ffmpeg input (96 ayat → ~190 inputs for a full surah), and ffmpeg
+        // otherwise spawns multi-threaded slices per CPU/core. On macOS the
+        // process/thread count quickly blows past `ulimit -u` and we get
+        // "pthread_create failed: Resource temporarily unavailable" +
+        // swscaler init failures, which is exactly this long-render crash.
+        // One slice/thread avoids that; rendering is slower but completes.
+        "-filter_threads".to_string(),
+        "1".to_string(),
+        "-filter_complex_threads".to_string(),
+        "1".to_string(),
     ];
 
     if is_image {
@@ -278,6 +293,11 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
         args.push("-1".to_string());
     }
 
+    // Single decode thread for the background input too. Otherwise its default
+    // multi-threaded decode pool adds to the thread pressure of this already
+    // huge input set (every slide is its own ffmpeg input).
+    args.push("-threads".to_string());
+    args.push("1".to_string());
     args.push("-i".to_string());
     args.push(job.bg_path.clone());
 
@@ -295,6 +315,8 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
     for audio_path in &job.audio_paths {
         if audio_path.starts_with("SILENCE_SECONDS:") {
             if let Some(secs_str) = audio_path.split(':').nth(1) {
+                args.push("-threads".to_string());
+                args.push("1".to_string());
                 args.push("-f".to_string());
                 args.push("lavfi".to_string());
                 args.push("-t".to_string());
@@ -460,6 +482,8 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
         args.push("-map".to_string());
         args.push(audio_map);
     }
+    args.push("-threads".to_string());
+    args.push("1".to_string());
     args.push("-c:v".to_string());
     #[cfg(target_os = "macos")]
     {
@@ -501,7 +525,8 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
             error: None,
         });
     });
-    let status = run_ffmpeg_with_timeout(&get_ffmpeg_path(), &args, total_ms, prog_cb);
+    let render_total_ms = (total_duration_secs as u64) * 1000;
+    let status = run_ffmpeg_with_timeout(&get_ffmpeg_path(), &args, render_total_ms, prog_cb);
 
     if let Some(ref thumb) = job.thumbnail_path {
         if status.as_ref().map(|s| s.0).unwrap_or(false) {

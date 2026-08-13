@@ -6,20 +6,12 @@ import { Button } from '../components/ui/button';
 // Display progress. Uses the real value from the Rust worker when available;
 // otherwise falls back to a slow estimate that never stalls at a bogus cap.
 const FakeProgress = ({ status, jobProgress }: { status: string; jobProgress?: number }) => {
-  const [estimate, setEstimate] = React.useState(0);
-  
-  React.useEffect(() => {
-    if (status === 'processing') {
-      setEstimate(5); // Start above zero for visible feedback
-      const interval = setInterval(() => {
-        setEstimate(p => Math.min(95, p + (Math.random() * 1.5 + 0.5)));
-      }, 1500);
-      return () => clearInterval(interval);
-    }
-  }, [status]);
+  // Done is always 100; errored/failed jobs drop to 0.
+  // Otherwise use the real progress from the Rust worker.
+  const progress = status === 'done' ? 100
+    : status === 'error' || status === 'failed' ? 0
+    : (jobProgress ?? 0);
 
-  // Real progress, else estimate, else 0. Done is always 100.
-  const progress = status === 'done' ? 100 : Math.max(status === 'processing' ? estimate : 0, jobProgress ?? 0);
 
   return (
     <div className="flex items-center gap-3 mt-2">

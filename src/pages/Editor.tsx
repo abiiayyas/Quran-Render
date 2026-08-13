@@ -272,17 +272,24 @@ export const Editor: React.FC = () => {
               fontEmbedCSS
             });
 
-            let previous_end_ms = 0;
-            if (displayWords.length > 0 && displayWords[0].start_ms !== null && displayWords[0].start_ms > 0) {
+            // Determine the true start and end of this slide within the verse timeline
+            const firstWord = displayWords[0];
+            const slideStartMs = slideIdx === 0 ? 0 : (firstWord?.start_ms ?? 0);
+            const nextSlideWord = verse.words[slide.wordEndIndex];
+
+            let previous_end_ms = slideStartMs;
+            
+            // If there's a gap before the first word of this slide, show the base frame
+            if (firstWord && firstWord.start_ms !== null && firstWord.start_ms > slideStartMs) {
               overlaySequence.push({
                 base64: baseFrameUrl.replace(/^data:image\/png;base64,/, ""),
-                start_ms: Math.round(cumulativeAudioDurationMs + 0),
-                end_ms: Math.round(cumulativeAudioDurationMs + displayWords[0].start_ms),
-                fade_in: isFirstSlideOfFirstVerse,
+                start_ms: Math.round(cumulativeAudioDurationMs + slideStartMs),
+                end_ms: Math.round(cumulativeAudioDurationMs + firstWord.start_ms),
+                fade_in: isFirstSlideOfFirstVerse && slideStartMs === 0,
                 fade_out: false,
                 fade_duration: fadeDuration
               });
-              previous_end_ms = displayWords[0].start_ms;
+              previous_end_ms = firstWord.start_ms;
             }
 
             for (let i = 0; i < displayWords.length; i++) {
@@ -301,7 +308,7 @@ export const Editor: React.FC = () => {
               });
               
               const start_time = word.start_ms;
-              const next_word = displayWords[i + 1];
+              const next_word = displayWords[i + 1] || nextSlideWord;
               const end_time = next_word?.start_ms ?? (verse.audioDurationMs || 5000);
               
               const shouldFadeIn = isFirstSlideOfFirstVerse && i === 0 && previous_end_ms === 0;
@@ -315,15 +322,16 @@ export const Editor: React.FC = () => {
                 fade_out: shouldFadeOut,
                 fade_duration: fadeDuration
               });
+              previous_end_ms = end_time;
             }
             store.updateCustomization({ highlightWordIndex: null });
           } else {
              const displayWords = verse.words ? verse.words.slice(slide.wordStartIndex, slide.wordEndIndex) : [];
              const firstWord = displayWords.length > 0 ? displayWords[0] : null;
-             const lastWord = displayWords.length > 0 ? displayWords[displayWords.length-1] : null;
              
-             const startMs = firstWord?.start_ms ?? 0;
-             const endMs = lastWord?.end_ms ?? (verse.audioDurationMs || 5000);
+             const slideStartMs = slideIdx === 0 ? 0 : (firstWord?.start_ms ?? 0);
+             const nextSlideWord = verse.words ? verse.words[slide.wordEndIndex] : null;
+             const slideEndMs = nextSlideWord?.start_ms ?? (verse.audioDurationMs || 5000);
              
              const frameDataUrl = await toPng(el, {
                 width: baseW, height: baseH, cacheBust: true, backgroundColor: 'transparent',
@@ -334,8 +342,8 @@ export const Editor: React.FC = () => {
              
              overlaySequence.push({
                base64: frameDataUrl.replace(/^data:image\/png;base64,/, ""),
-               start_ms: Math.round(cumulativeAudioDurationMs + startMs),
-               end_ms: Math.round(cumulativeAudioDurationMs + endMs),
+               start_ms: Math.round(cumulativeAudioDurationMs + slideStartMs),
+               end_ms: Math.round(cumulativeAudioDurationMs + slideEndMs),
                fade_in: isFirstSlideOfFirstVerse,
                fade_out: isLastSlideOfLastVerse,
                fade_duration: fadeDuration

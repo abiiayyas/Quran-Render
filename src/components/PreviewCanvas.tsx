@@ -27,7 +27,7 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
         const { width, height } = entry.contentRect;
         const scaleW = width / baseW;
         const scaleH = height / baseH;
-        setScale(Math.min(scaleW, scaleH));
+        setScale(Math.max(0.1, Math.min(scaleW, scaleH)));
       }
     });
     observer.observe(wrapperRef.current);
@@ -106,8 +106,6 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
   const topPosition = `${customization.textPositionY}%`;
 
   // Detect background type
-  const isVideoBg = bgPath?.toLowerCase().match(/\.(mp4|mov|webm)$/);
-  const isImageBg = bgPath?.toLowerCase().match(/\.(jpg|jpeg|png|webp)$/);
 
   // Template styles
   const getTemplateOverlayClass = () => {
@@ -125,7 +123,8 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
   const isFading = customization.animationStyle === 'fade' && !isExporting;
 
   return (
-    <div ref={wrapperRef} className="w-full h-full flex justify-center items-center overflow-hidden bg-black">
+    <div className="flex-1 w-full h-full min-h-0 relative overflow-hidden bg-black">
+      <div ref={wrapperRef} className="absolute inset-0 flex justify-center items-center">
       <div className="relative flex-shrink-0 bg-zinc-900" style={{ width: `${baseW * scale}px`, height: `${baseH * scale}px` }}>
         <div 
           ref={containerRef}
@@ -139,8 +138,13 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
         >
         {/* Background Layer - Hidden during export by html-to-image filter logic in Editor.tsx */}
         <div id="preview-bg-layer" className="absolute inset-0 w-full h-full object-cover -z-10">
-          {isVideoBg && bgPath && <video ref={videoRef} src={convertFileSrc(bgPath)} className="w-full h-full object-cover" loop muted playsInline />}
-          {isImageBg && bgPath && <img src={convertFileSrc(bgPath)} className="w-full h-full object-cover" />}
+          {(activeSlide?.customBgPath || bgPath) && (
+            (activeSlide?.customBgPath || bgPath)?.toLowerCase().match(/\.(mp4|mov|webm)$/) ? (
+              <video ref={videoRef} src={convertFileSrc((activeSlide?.customBgPath || bgPath) as string)} className="w-full h-full object-cover" loop muted playsInline />
+            ) : (
+              <img src={convertFileSrc((activeSlide?.customBgPath || bgPath) as string)} className="w-full h-full object-cover" />
+            )
+          )}
           {currentAudioPath && <audio ref={audioRef} src={convertFileSrc(currentAudioPath)} />}
         </div>
 
@@ -163,23 +167,45 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
         )}
 
         {/* Text Overlay Layer */}
-        {verse ? (
+        {verse && activeSlide?.type === 'tafsir' ? (
+          <div 
+            key={`${activeSlideId}-tafsir`}
+            className={`absolute w-full px-16 flex flex-col items-center gap-6 ${getTemplateOverlayClass()} ${isFading ? 'animate-in fade-in duration-500' : ''}`}
+            style={{ 
+              top: '50%',
+              transform: 'translateY(-50%)',
+              textAlign: 'center'
+            }}
+          >
+            <div className="bg-black/60 backdrop-blur-md px-6 py-2 rounded-full border border-white/20 mb-4">
+              <p className="text-white font-semibold text-2xl tracking-widest uppercase">
+                {activeSlide.tafsirSource || 'Tafsir'}
+              </p>
+            </div>
+            <div 
+              className="bg-black/40 backdrop-blur-sm p-12 rounded-3xl border border-white/10"
+              style={{
+                color: customization.translationColor,
+                fontFamily: fontMap[customization.translationFontFamily],
+                fontSize: transFontSize,
+                lineHeight: '1.6',
+                textShadow: '0 4px 24px rgba(0,0,0,0.8)'
+              }}
+            >
+              {activeSlide.tafsirText}
+            </div>
+          </div>
+        ) : verse ? (
           <div 
             key={`${activeSlideId}-${customization.animationStyle}`}
             className={`absolute w-full px-16 flex flex-col items-center gap-12 ${getTemplateOverlayClass()} ${isFading ? 'animate-in fade-in duration-500' : ''}`}
             style={{ 
-              top: topPosition, 
+              top: topPosition,
               transform: 'translateY(-50%)',
-              animation: isFading ? 'fadeIn 0.5s ease-in-out' : 'none'
+              textAlign: 'center'
             }}
           >
-            <style>{`
-              @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-              }
-            `}</style>
-            <div 
+            <p 
               dir="rtl" 
               className="font-bold leading-normal text-center w-full flex justify-center flex-wrap gap-x-4 py-4" 
               style={{ fontFamily: fontMap[customization.arabicFontFamily] || 'Uthmanic, serif', fontSize: arabicFontSize, textShadow: '0px 4px 12px rgba(0,0,0,0.8)' }}
@@ -244,7 +270,7 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
               ) : (
                 <span style={{ color: customization.arabicColor }}>{displayArabic}</span>
               )}
-            </div>
+            </p>
             {customization.showSeparator && (
               <div className="w-16 h-1 bg-yellow-500/80 rounded-full" />
             )}
@@ -259,8 +285,8 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
                 }}
               >
                 {customization.translationLanguage === 'en' 
-                  ? (activeSlide?.translation_en || verse.translation_en)
-                  : (activeSlide?.translation || verse.translation)}
+                  ? (activeSlide?.translation_en || verse?.translation_en)
+                  : (activeSlide?.translation || verse?.translation)}
               </div>
             )}
           </div>
@@ -269,8 +295,9 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
             No Verse Selected
           </div>
         )}
+          </div>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
 });

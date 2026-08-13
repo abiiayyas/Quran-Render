@@ -23,6 +23,12 @@ export interface Slide {
   wordEndIndex: number;
   translation?: string;
   translation_en?: string;
+  type?: 'quran' | 'tafsir';
+  tafsirText?: string;
+  tafsirSource?: string;
+  customBgPath?: string | null;
+  audioPath?: string | null;
+  slideDuration?: number;
 }
 
 interface AppState {
@@ -50,6 +56,10 @@ interface AppState {
   updateSlideTranslation: (slideId: string, lang: 'id' | 'en', text: string) => void;
   splitSlide: (slideId: string, wordIndex: number) => void;
   removeSlide: (slideId: string) => void;
+  insertTafsirSlide: (afterSlideId: string, tafsirText: string, source: string) => void;
+  updateSlideCustomBg: (slideId: string, path: string | null) => void;
+  updateSlideDuration: (slideId: string, seconds: number) => void;
+  updateSlideAudio: (slideId: string, path: string | null) => void;
   activeSlideId: string | null;
   setActiveSlideId: (id: string | null) => void;
   
@@ -131,7 +141,8 @@ export const useAppStore = create<AppState>((set) => ({
       wordStartIndex: 0,
       wordEndIndex: v.words ? v.words.length : 0,
       translation: v.translation,
-      translation_en: v.translation_en
+      translation_en: v.translation_en,
+      type: 'quran' as const
     }));
     set({ verses, slides });
   },
@@ -143,7 +154,8 @@ export const useAppStore = create<AppState>((set) => ({
       wordStartIndex: 0,
       wordEndIndex: verse.words ? verse.words.length : 0,
       translation: verse.translation,
-      translation_en: verse.translation_en
+      translation_en: verse.translation_en,
+      type: 'quran' as const
     };
     return { verses: newVerses, slides: [...state.slides, newSlide] };
   }),
@@ -173,11 +185,11 @@ export const useAppStore = create<AppState>((set) => ({
     const idx = state.slides.findIndex(s => s.id === slideId);
     if (idx === -1) return state;
     const slide = state.slides[idx];
+    if (slide.type === 'tafsir') return state;
     if (wordIndex <= slide.wordStartIndex || wordIndex >= slide.wordEndIndex) return state;
     
     const newSlides = [...state.slides];
     
-    // Split translations in half by space
     const splitText = (text?: string) => {
       if (!text) return ['', ''];
       const words = text.split(' ');
@@ -196,6 +208,35 @@ export const useAppStore = create<AppState>((set) => ({
   }),
   removeSlide: (slideId) => set((state) => ({
     slides: state.slides.filter(s => s.id !== slideId)
+  })),
+  insertTafsirSlide: (afterSlideId, tafsirText, source) => set((state) => {
+    const idx = state.slides.findIndex(s => s.id === afterSlideId);
+    if (idx === -1) return state;
+    
+    const afterSlide = state.slides[idx];
+    const newSlide: Slide = {
+      id: `tafsir_${afterSlide.verseIndex}_${Date.now()}`,
+      verseIndex: afterSlide.verseIndex,
+      wordStartIndex: 0,
+      wordEndIndex: 0,
+      type: 'tafsir',
+      tafsirText,
+      tafsirSource: source,
+      slideDuration: 5,
+    };
+    
+    const newSlides = [...state.slides];
+    newSlides.splice(idx + 1, 0, newSlide);
+    return { slides: newSlides };
+  }),
+  updateSlideCustomBg: (slideId, path) => set((state) => ({
+    slides: state.slides.map(s => s.id === slideId ? { ...s, customBgPath: path } : s)
+  })),
+  updateSlideDuration: (slideId, seconds) => set((state) => ({
+    slides: state.slides.map(s => s.id === slideId ? { ...s, slideDuration: seconds } : s)
+  })),
+  updateSlideAudio: (slideId, path) => set((state) => ({
+    slides: state.slides.map(s => s.id === slideId ? { ...s, audioPath: path } : s)
   })),
   activeSlideId: null,
   setActiveSlideId: (id) => set({ activeSlideId: id }),

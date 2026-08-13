@@ -1,10 +1,80 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../store';
+import { invoke } from '@tauri-apps/api/core';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 
 export const Settings: React.FC = () => {
   const { settings, updateSettings } = useAppStore();
+  const [cacheSize, setCacheSize] = useState<string>('Loading...');
+  
+  const [aiProvider, setAiProvider] = useState('openai');
+  const [aiApiKey, setAiApiKey] = useState('');
+  const [aiImageProvider, setAiImageProvider] = useState('openai');
+  const [aiImageApiKey, setAiImageApiKey] = useState('');
+  const [aiTtsProvider, setAiTtsProvider] = useState('openai');
+  const [aiTtsApiKey, setAiTtsApiKey] = useState('');
+
+  const loadAiSettings = async () => {
+    try {
+      const p = await invoke<string | null>('get_app_setting', { key: 'ai_provider' });
+      if (p) setAiProvider(p);
+      const k = await invoke<string | null>('get_app_setting', { key: 'ai_api_key' });
+      if (k) setAiApiKey(k);
+      const ip = await invoke<string | null>('get_app_setting', { key: 'ai_image_provider' });
+      if (ip) setAiImageProvider(ip);
+      const ik = await invoke<string | null>('get_app_setting', { key: 'ai_image_api_key' });
+      if (ik) setAiImageApiKey(ik);
+      const tp = await invoke<string | null>('get_app_setting', { key: 'ai_tts_provider' });
+      if (tp) setAiTtsProvider(tp);
+      const tk = await invoke<string | null>('get_app_setting', { key: 'ai_tts_api_key' });
+      if (tk) setAiTtsApiKey(tk);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const saveAiSettings = async () => {
+    try {
+      await invoke('save_app_setting', { key: 'ai_provider', value: aiProvider });
+      await invoke('save_app_setting', { key: 'ai_api_key', value: aiApiKey });
+      await invoke('save_app_setting', { key: 'ai_image_provider', value: aiImageProvider });
+      await invoke('save_app_setting', { key: 'ai_image_api_key', value: aiImageApiKey });
+      await invoke('save_app_setting', { key: 'ai_tts_provider', value: aiTtsProvider });
+      await invoke('save_app_setting', { key: 'ai_tts_api_key', value: aiTtsApiKey });
+      alert('AI Settings saved successfully!');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to save AI settings');
+    }
+  };
+
+  const fetchCacheSize = async () => {
+    try {
+      const size = await invoke<string>('get_audio_cache_size');
+      setCacheSize(size);
+    } catch (e) {
+      console.error(e);
+      setCacheSize('Error');
+    }
+  };
+
+  const handleClearCache = async () => {
+    if (!confirm('Are you sure you want to clear all downloaded audio files? They will be re-downloaded when needed.')) return;
+    try {
+      await invoke('clear_audio_cache');
+      await fetchCacheSize();
+      alert('Audio cache cleared successfully.');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to clear audio cache.');
+    }
+  };
+
+  useEffect(() => {
+    fetchCacheSize();
+    loadAiSettings();
+  }, []);
 
   return (
     <div className="p-8 max-w-4xl">
@@ -49,6 +119,116 @@ export const Settings: React.FC = () => {
                   <span className="text-foreground">Light</span>
                 </label>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* AI Configuration */}
+        <section className="bg-card p-6 rounded-lg border border-border shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold text-card-foreground">AI Configuration</h3>
+            <Button variant="default" onClick={saveAiSettings}>Save AI Settings</Button>
+          </div>
+          <div className="space-y-6">
+            <div className="space-y-4 border-b border-border pb-4">
+              <h4 className="text-sm font-semibold text-muted-foreground">Text & Summarization AI</h4>
+              <div className="flex gap-4">
+                <div className="w-1/3">
+                  <label className="block text-sm text-muted-foreground mb-1">Provider</label>
+                  <select 
+                    value={aiProvider}
+                    onChange={(e) => setAiProvider(e.target.value)}
+                    className="w-full bg-background border border-input rounded px-3 py-2 text-foreground text-sm"
+                  >
+                    <option value="openai">OpenAI (GPT-4o-mini)</option>
+                    <option value="gemini">Google Gemini (Flash)</option>
+                    <option value="claude">Anthropic Claude</option>
+                    <option value="deepseek">DeepSeek</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm text-muted-foreground mb-1">API Key</label>
+                  <Input 
+                    type="password" 
+                    value={aiApiKey}
+                    onChange={(e) => setAiApiKey(e.target.value)}
+                    placeholder="sk-..." 
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 border-b border-border pb-4">
+              <h4 className="text-sm font-semibold text-muted-foreground">Image Generation AI</h4>
+              <div className="flex gap-4">
+                <div className="w-1/3">
+                  <label className="block text-sm text-muted-foreground mb-1">Provider</label>
+                  <select 
+                    value={aiImageProvider}
+                    onChange={(e) => setAiImageProvider(e.target.value)}
+                    className="w-full bg-background border border-input rounded px-3 py-2 text-foreground text-sm"
+                  >
+                    <option value="openai">OpenAI (DALL-E 3)</option>
+                    <option value="stability">Stability AI</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm text-muted-foreground mb-1">API Key (Leave empty to use Text API Key)</label>
+                  <Input 
+                    type="password" 
+                    value={aiImageApiKey}
+                    onChange={(e) => setAiImageApiKey(e.target.value)}
+                    placeholder="Leave empty to use main API key" 
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-muted-foreground">Text-to-Speech (TTS) AI</h4>
+              <div className="flex gap-4">
+                <div className="w-1/3">
+                  <label className="block text-sm text-muted-foreground mb-1">Provider</label>
+                  <select 
+                    value={aiTtsProvider}
+                    onChange={(e) => setAiTtsProvider(e.target.value)}
+                    className="w-full bg-background border border-input rounded px-3 py-2 text-foreground text-sm"
+                  >
+                    <option value="openai">OpenAI TTS</option>
+                    <option value="elevenlabs">ElevenLabs</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm text-muted-foreground mb-1">API Key (Leave empty to use Text API Key)</label>
+                  <Input 
+                    type="password" 
+                    value={aiTtsApiKey}
+                    onChange={(e) => setAiTtsApiKey(e.target.value)}
+                    placeholder="Leave empty to use main API key" 
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Audio Cache Manager */}
+        <section className="bg-card p-6 rounded-lg border border-border shadow-sm">
+          <h3 className="text-xl font-semibold mb-4 text-card-foreground">Audio Manager</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border border-border p-4 rounded bg-background">
+              <div>
+                <h4 className="text-sm font-medium text-foreground">Local Audio Cache</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Downloaded audio files are stored locally to speed up future rendering.
+                </p>
+                <p className="text-sm font-mono text-primary mt-2">
+                  Current Size: {cacheSize}
+                </p>
+              </div>
+              <Button variant="destructive" onClick={handleClearCache}>
+                Clear Cache
+              </Button>
             </div>
           </div>
         </section>

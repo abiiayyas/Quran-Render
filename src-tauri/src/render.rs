@@ -108,6 +108,16 @@ fn get_ffmpeg_path() -> String {
     "ffmpeg".to_string()
 }
 
+fn get_ffprobe_path() -> String {
+    let paths = ["ffprobe", "/opt/homebrew/bin/ffprobe", "/usr/local/bin/ffprobe"];
+    for path in paths {
+        if let Ok(_) = ProcessCommand::new(path).arg("-version").output() {
+            return path.to_string();
+        }
+    }
+    "ffprobe".to_string()
+}
+
 // Shared progress state — a single AtomicU8 used by both getter and setter.
 static PROGRESS_STATE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 
@@ -194,18 +204,30 @@ fn read_child_stderr(child: &mut std::process::Child) -> String {
 // Total duration of an audio file in ms, parsed from ffprobe. Falls back to 0
 // (contributes nothing) on any failure.
 fn probe_audio_duration_ms(path: &str) -> u64 {
-    let out = match ProcessCommand::new("ffprobe")
+    let ffprobe = get_ffprobe_path();
+    println!("[probe] Using ffprobe: {} for path: {}", ffprobe, path);
+    let out = match ProcessCommand::new(&ffprobe)
         .args(["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path])
         .output()
     {
         Ok(o) if o.status.success() => o,
-        _ => return 0,
+        Ok(o) => {
+            println!("[probe] ffprobe failed for {}: exit={:?} stderr={}", path, o.status.code(), String::from_utf8_lossy(&o.stderr));
+            return 0;
+        }
+        Err(e) => {
+            println!("[probe] ffprobe spawn error for {}: {}", path, e);
+            return 0;
+        }
     };
-    String::from_utf8_lossy(&out.stdout)
+    let raw = String::from_utf8_lossy(&out.stdout);
+    let duration_ms = raw
         .trim()
         .parse::<f64>()
         .map(|s| (s * 1000.0) as u64)
-        .unwrap_or(0)
+        .unwrap_or(0);
+    println!("[probe] {} => {} ms", path, duration_ms);
+    duration_ms
 }
 
 fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), String> {
@@ -224,8 +246,20 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
                 || job.bg_path.to_lowercase().ends_with(".webm");
 
     // Compute total audio length early — needed for -t and progress tracking.
-    let total_ms: u64 = job.audio_paths.iter().map(|p| probe_audio_duration_ms(p)).sum();
+    let mut total_ms: u64 = 0;
+    for p in &job.audio_paths {
+        if p.starts_with("SILENCE_SECONDS:") {
+            if let Some(secs_str) = p.split(':').nth(1) {
+                if let Ok(secs) = secs_str.parse::<u64>() {
+                    total_ms += secs * 1000;
+                }
+            }
+        } else {
+            total_ms += probe_audio_duration_ms(p);
+        }
+    }
     let total_duration_secs = job.duration.unwrap_or((total_ms as f32 / 1000.0).ceil().max(1.0) as u32);
+    println!("[render] audio_paths count={}, total_ms={}, total_duration_secs={}", job.audio_paths.len(), total_ms, total_duration_secs);
 
     // Global fade duration from job or default 0.5s.
     let default_fade_dur: f32 = job.fade_duration.unwrap_or(0.5);
@@ -247,22 +281,51 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
     args.push("-i".to_string());
     args.push(job.bg_path.clone());
 
+    let mut audio_input_indices = Vec::new();
+    let mut current_input_index = 1; // 0 is bg
+
+    // We will extract custom backgrounds from overlay_sequence and add them as inputs
+    if let Some(seq) = &job.overlay_sequence {
+        for _frame in seq {
+            // We'll pass custom bg in base64? No, it's a file path in the frontend.
+            // Wait, OverlayFrame doesn't have custom_bg_path yet. Let's handle it later or modify OverlayFrame.
+        }
+    }
+
     for audio_path in &job.audio_paths {
-        args.push("-i".to_string());
-        args.push(audio_path.clone());
+        if audio_path.starts_with("SILENCE_SECONDS:") {
+            if let Some(secs_str) = audio_path.split(':').nth(1) {
+                args.push("-f".to_string());
+                args.push("lavfi".to_string());
+                args.push("-t".to_string());
+                args.push(secs_str.to_string());
+                args.push("-i".to_string());
+                args.push("anullsrc=channel_layout=stereo:sample_rate=44100".to_string());
+                audio_input_indices.push(current_input_index);
+                current_input_index += 1;
+            }
+        } else {
+            args.push("-i".to_string());
+            args.push(audio_path.clone());
+            audio_input_indices.push(current_input_index);
+            current_input_index += 1;
+        }
     }
 
     let mut filter_complex = String::new();
-    // Audio inputs start at index 1 (index 0 is the background image/video).
+    // Audio inputs start at index 1
     let has_audio = !job.audio_paths.is_empty();
     let audio_map = if job.audio_paths.len() > 1 {
-        for i in 0..job.audio_paths.len() {
-            filter_complex.push_str(&format!("[{}:a]", i + 1));
+        for i in &audio_input_indices {
+            filter_complex.push_str(&format!("[{}:a]", i));
         }
-        filter_complex.push_str(&format!("concat=n={}:v=0:a=1[outa];", job.audio_paths.len()));
+        let fade_out_st = total_duration_secs.saturating_sub(1);
+        filter_complex.push_str(&format!("concat=n={}:v=0:a=1,afade=t=in:st=0:d=1,afade=t=out:st={}:d=1[outa];", job.audio_paths.len(), fade_out_st));
         "[outa]".to_string()
     } else if has_audio {
-        "1:a".to_string()
+        let fade_out_st = total_duration_secs.saturating_sub(1);
+        filter_complex.push_str(&format!("[1:a]afade=t=in:st=0:d=1,afade=t=out:st={}:d=1[outa];", fade_out_st));
+        "[outa]".to_string()
     } else {
         // No audio at all.
         String::new()
@@ -392,7 +455,16 @@ fn execute_ffmpeg(job: &RenderJob, app_handle: &tauri::AppHandle) -> Result<(), 
         args.push(audio_map);
     }
     args.push("-c:v".to_string());
-    args.push("libx264".to_string());
+    #[cfg(target_os = "macos")]
+    {
+        args.push("h264_videotoolbox".to_string());
+        args.push("-b:v".to_string());
+        args.push("5M".to_string()); // Default 5 Mbps to preserve quality for HW encoder
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        args.push("libx264".to_string());
+    }
     if has_audio {
         args.push("-c:a".to_string());
         args.push("aac".to_string());

@@ -43,6 +43,28 @@ pub fn save_project(state: State<'_, AppState>, id: String, name: String, settin
     Ok(())
 }
 
+#[tauri::command]
+pub fn save_app_setting(state: State<'_, AppState>, key: String, value: String) -> Result<(), String> {
+    let db = state.db.lock().unwrap();
+    db.execute(
+        "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?1, ?2)",
+        (&key, &value),
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_app_setting(state: State<'_, AppState>, key: String) -> Result<Option<String>, String> {
+    let db = state.db.lock().unwrap();
+    let mut stmt = db.prepare("SELECT value FROM app_settings WHERE key = ?1").map_err(|e| e.to_string())?;
+    let mut rows = stmt.query([key]).map_err(|e| e.to_string())?;
+    if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+        Ok(Some(row.get(0).map_err(|e| e.to_string())?))
+    } else {
+        Ok(None)
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct QuranWord {
     pub position: u32,
@@ -238,11 +260,16 @@ pub async fn fetch_quran_verses(state: State<'_, AppState>, surah: u32, ayat_sta
 }
 
 #[tauri::command]
-pub async fn download_audio(url: String, filename: String) -> Result<String, String> {
-    let temp_dir = std::env::temp_dir();
-    let file_path = temp_dir.join(filename);
+pub async fn download_audio(app_handle: tauri::AppHandle, url: String, filename: String) -> Result<String, String> {
+    use tauri::Manager;
+    let app_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let cache_dir = app_dir.join("audio_cache");
+    if !cache_dir.exists() {
+        std::fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
+    }
+    let file_path = cache_dir.join(filename);
     
-    // Check if it already exists (very basic caching)
+    // Check if it already exists (persistent cache)
     if file_path.exists() {
         return Ok(file_path.to_string_lossy().to_string());
     }
@@ -257,4 +284,42 @@ pub async fn download_audio(url: String, filename: String) -> Result<String, Str
     std::fs::write(&file_path, bytes).map_err(|e| e.to_string())?;
     
     Ok(file_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn get_audio_cache_size(app_handle: tauri::AppHandle) -> Result<String, String> {
+    use tauri::Manager;
+    let app_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let cache_dir = app_dir.join("audio_cache");
+    if !cache_dir.exists() {
+        return Ok("0 B".to_string());
+    }
+    
+    let mut total_size = 0;
+    if let Ok(entries) = std::fs::read_dir(cache_dir) {
+        for entry in entries.flatten() {
+            if let Ok(metadata) = entry.metadata() {
+                total_size += metadata.len();
+            }
+        }
+    }
+    
+    let size_mb = total_size as f64 / 1_048_576.0;
+    if size_mb < 1.0 {
+        let size_kb = total_size as f64 / 1024.0;
+        return Ok(format!("{:.2} KB", size_kb));
+    }
+    Ok(format!("{:.2} MB", size_mb))
+}
+
+#[tauri::command]
+pub fn clear_audio_cache(app_handle: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    let app_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let cache_dir = app_dir.join("audio_cache");
+    if cache_dir.exists() {
+        std::fs::remove_dir_all(&cache_dir).map_err(|e| e.to_string())?;
+        std::fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }

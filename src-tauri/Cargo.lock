@@ -2163,6 +2163,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "md5"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2879,6 +2885,7 @@ name = "quran-render"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
+ "md5",
  "reqwest",
  "rusqlite",
  "serde",

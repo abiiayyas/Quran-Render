@@ -15,11 +15,22 @@ export const Editor: React.FC = () => {
   const previewRef = useRef<PreviewCanvasHandle>(null);
   
   const [surah, setSurah] = useState('1');
-  const [activeTab, setActiveTab] = useState<'data' | 'customize' | 'templates'>('data');
+  const [activeTab, setActiveTab] = useState<'data' | 'customize' | 'templates' | 'ai'>('data');
   const [ayatStart, setAyatStart] = useState('1');
   const [ayatEnd, setAyatEnd] = useState('2');
   const [loading, setLoading] = useState(false);
-  const [autoFetchAudio, setAutoFetchAudio] = useState(false);
+  const [autoFetchAudio, setAutoFetchAudio] = useState<boolean>(true);
+  
+  // AI & Tafsir State
+  const [tafsirSourceId, setTafsirSourceId] = useState<string>('169'); // 169 = Ibn Kathir English
+  const [rawTafsir, setRawTafsir] = useState<string>('');
+  const [aiSummary, setAiSummary] = useState<string>('');
+  const [isFetchingTafsir, setIsFetchingTafsir] = useState<boolean>(false);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState<boolean>(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState<boolean>(false);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState<boolean>(false);
+
+  const activeSlide = store.activeSlideId ? store.slides.find(s => s.id === store.activeSlideId) : null; 
   const [reciterId, setReciterId] = useState('7'); // Default Mishary
   const [useQuranApi, setUseQuranApi] = useState(true);
   const [manualArabic, setManualArabic] = useState('');
@@ -236,19 +247,21 @@ export const Editor: React.FC = () => {
         const isLastVerse = vIndex === lastVerseIndex;
         const verseSlides = store.slides.filter(s => s.verseIndex === vIndex);
         
-        for (let slideIdx = 0; slideIdx < verseSlides.length; slideIdx++) {
-          const slide = verseSlides[slideIdx];
+        const quranSlides = verseSlides.filter(s => s.type !== 'tafsir');
+        const tafsirSlides = verseSlides.filter(s => s.type === 'tafsir');
+        
+        // 1. Process Quran Slides
+        for (let slideIdx = 0; slideIdx < quranSlides.length; slideIdx++) {
+          const slide = quranSlides[slideIdx];
           const isFirstSlideOfFirstVerse = isFirstVerse && slideIdx === 0;
-          const isLastSlideOfLastVerse = isLastVerse && slideIdx === verseSlides.length - 1;
+          const isLastSlideOfLastVerse = isLastVerse && slideIdx === quranSlides.length - 1 && tafsirSlides.length === 0;
 
           store.setActiveSlideId(slide.id);
-          // Wait for React to render the active slide text
           await new Promise(res => setTimeout(res, 200)); 
           
           if (store.customization.karaokeMode && verse.words && verse.words.length > 0) {
             const displayWords = verse.words.slice(slide.wordStartIndex, slide.wordEndIndex);
             
-            // Add unhighlighted base frame at the start
             store.updateCustomization({ highlightWordIndex: null });
             await new Promise(res => setTimeout(res, 50));
             
@@ -291,9 +304,7 @@ export const Editor: React.FC = () => {
               const next_word = displayWords[i + 1];
               const end_time = next_word?.start_ms ?? (verse.audioDurationMs || 5000);
               
-              // Fade-in only on the very first frame of the first verse
               const shouldFadeIn = isFirstSlideOfFirstVerse && i === 0 && previous_end_ms === 0;
-              // Fade-out only on the very last frame of the last verse
               const shouldFadeOut = isLastSlideOfLastVerse && i === displayWords.length - 1;
 
               overlaySequence.push({
@@ -307,7 +318,6 @@ export const Editor: React.FC = () => {
             }
             store.updateCustomization({ highlightWordIndex: null });
           } else {
-             // Static slide
              const displayWords = verse.words ? verse.words.slice(slide.wordStartIndex, slide.wordEndIndex) : [];
              const firstWord = displayWords.length > 0 ? displayWords[0] : null;
              const lastWord = displayWords.length > 0 ? displayWords[displayWords.length-1] : null;
@@ -334,6 +344,56 @@ export const Editor: React.FC = () => {
         }
         
         cumulativeAudioDurationMs += verse.audioDurationMs || 0;
+        
+        // 2. Process Tafsir Slides
+        for (let tIdx = 0; tIdx < tafsirSlides.length; tIdx++) {
+           const tSlide = tafsirSlides[tIdx];
+           store.setActiveSlideId(tSlide.id);
+           await new Promise(res => setTimeout(res, 200)); 
+           
+           let tAudioDurationMs = (tSlide.slideDuration || 5) * 1000;
+           if (tSlide.audioPath) {
+              const dur = await new Promise<number>((resolve) => {
+                const audio = new Audio(convertFileSrc(tSlide.audioPath!));
+                audio.onloadedmetadata = () => resolve(audio.duration * 1000);
+                audio.onerror = () => resolve((tSlide.slideDuration || 5) * 1000);
+              });
+              tAudioDurationMs = dur;
+              audioPaths.push(tSlide.audioPath);
+           } else {
+              audioPaths.push(`SILENCE_SECONDS:${tSlide.slideDuration || 5}`);
+           }
+           
+           const frameDataUrl = await toPng(el, {
+              width: baseW, height: baseH, cacheBust: true, backgroundColor: 'transparent',
+              style: { transform: 'scale(1)', transformOrigin: 'top left', background: 'transparent' },
+              pixelRatio: 1, 
+              // Keep background if it's a custom Tafsir background image! (Not video)
+              filter: (node) => {
+                 if (node.id === 'preview-bg-layer') {
+                    if (tSlide.customBgPath && tSlide.customBgPath.match(/\.(png|jpg|jpeg|webp)$/i)) {
+                       return true; // keep it
+                    }
+                    return false; // remove it
+                 }
+                 return true;
+              },
+              fontEmbedCSS
+           });
+           
+           const isLastTafsirOfLastVerse = isLastVerse && tIdx === tafsirSlides.length - 1;
+           
+           overlaySequence.push({
+             base64: frameDataUrl.replace(/^data:image\/png;base64,/, ""),
+             start_ms: Math.round(cumulativeAudioDurationMs),
+             end_ms: Math.round(cumulativeAudioDurationMs + tAudioDurationMs),
+             fade_in: true, // Tafsir slides always fade in
+             fade_out: isLastTafsirOfLastVerse || true, // Tafsir slides always fade out
+             fade_duration: fadeDuration
+           });
+           
+           cumulativeAudioDurationMs += tAudioDurationMs;
+        }
       }
       
       const jobId = `job_${Date.now()}`;
@@ -389,6 +449,10 @@ export const Editor: React.FC = () => {
               onClick={() => setActiveTab('templates')}
               className={`flex-1 py-1.5 text-sm font-medium rounded-sm transition-all ${activeTab === 'templates' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
             >Templates</button>
+            <button 
+              onClick={() => setActiveTab('ai')}
+              className={`flex-1 py-1.5 text-sm font-medium rounded-sm transition-all ${activeTab === 'ai' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground hover:text-primary'}`}
+            >AI & Tafsir</button>
           </div>
         </div>
         
@@ -514,8 +578,31 @@ export const Editor: React.FC = () => {
                         <div className="text-xs text-foreground font-semibold">Slide {idx + 1} (Ayah {verse.ayah})</div>
                         <button onClick={(e) => { e.stopPropagation(); store.removeSlide(slide.id); }} className="text-xs text-red-400 hover:text-red-300">Remove</button>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">Words: {slide.wordStartIndex + 1} to {slide.wordEndIndex} of {totalWords}</div>
-                      {canSplit && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {slide.type === 'tafsir' ? 'Tafsir Slide' : `Words: ${slide.wordStartIndex + 1} to ${slide.wordEndIndex} of ${totalWords}`}
+                      </div>
+                      
+                      {slide.type === 'tafsir' && (
+                        <div className="mt-2 flex flex-col gap-2" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">Duration (s)</span>
+                            <input 
+                              type="number" 
+                              value={slide.slideDuration || 5} 
+                              onChange={(e) => store.updateSlideDuration(slide.id, parseInt(e.target.value) || 5)}
+                              className="w-16 p-1 text-xs bg-background border border-input rounded text-foreground"
+                            />
+                          </div>
+                          {slide.customBgPath && (
+                            <div className="text-[10px] text-green-400 truncate">🖼️ {slide.customBgPath.split(/[\\/]/).pop()}</div>
+                          )}
+                          {slide.audioPath && (
+                            <div className="text-[10px] text-blue-400 truncate">🔊 {slide.audioPath.split(/[\\/]/).pop()}</div>
+                          )}
+                        </div>
+                      )}
+
+                      {canSplit && slide.type !== 'tafsir' && (
                         <button 
                           onClick={(e) => { 
                             e.stopPropagation(); 
@@ -528,7 +615,7 @@ export const Editor: React.FC = () => {
                         </button>
                       )}
                       
-                      {store.activeSlideId === slide.id && store.customization.showTranslation && (
+                      {store.activeSlideId === slide.id && store.customization.showTranslation && slide.type !== 'tafsir' && (
                         <div className="mt-3 space-y-2" onClick={e => e.stopPropagation()}>
                           <div className="text-[10px] font-semibold uppercase text-muted-foreground">Edit Slide Translation</div>
                           {store.customization.translationLanguage === 'id' ? (
@@ -892,6 +979,164 @@ export const Editor: React.FC = () => {
             </select>
           </section>
           )}
+
+          {activeTab === 'ai' && (
+          <section className="space-y-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-2">Tafsir & AI Tools</h3>
+            
+            {!activeSlide ? (
+              <div className="text-sm text-muted-foreground italic bg-muted p-3 rounded">
+                Please select a slide from the 'Data' tab first to generate Tafsir or AI assets for it.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-muted p-3 rounded space-y-3">
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Tafsir Source</label>
+                    <select 
+                      value={tafsirSourceId}
+                      onChange={(e) => setTafsirSourceId(e.target.value)}
+                      className="w-full p-2 bg-background border border-input rounded text-foreground text-sm"
+                    >
+                      <option value="169">Ibn Kathir (English)</option>
+                      <option value="16">Tafsir Muyassar (Arabic)</option>
+                      <option value="165">Tafsir Ahsanul Bayaan (Bengali)</option>
+                      {/* Can add more from API later */}
+                    </select>
+                  </div>
+                  
+                  <button 
+                    onClick={async () => {
+                      if (!activeSlide) return;
+                      const verse = store.verses[activeSlide.verseIndex];
+                      if (!verse) return;
+                      setIsFetchingTafsir(true);
+                      try {
+                        const text = await invoke<string>('fetch_tafsir', { 
+                          surah: verse.surah, 
+                          ayah: verse.ayah, 
+                          tafsirId: parseInt(tafsirSourceId) 
+                        });
+                        setRawTafsir(text);
+                      } catch (e) {
+                        alert(`Failed to fetch tafsir: ${e}`);
+                      } finally {
+                        setIsFetchingTafsir(false);
+                      }
+                    }}
+                    disabled={isFetchingTafsir || activeSlide.type === 'tafsir'}
+                    className="w-full bg-secondary hover:bg-secondary/80 py-2 rounded text-secondary-foreground text-sm transition disabled:opacity-50"
+                  >
+                    {isFetchingTafsir ? 'Fetching...' : '1. Fetch Raw Tafsir'}
+                  </button>
+                  
+                  {rawTafsir && (
+                    <div className="text-[10px] text-muted-foreground max-h-24 overflow-y-auto bg-background p-2 rounded border border-border">
+                      {rawTafsir}
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-muted p-3 rounded space-y-3">
+                  <button 
+                    onClick={async () => {
+                      if (!rawTafsir) { alert('Fetch raw tafsir first'); return; }
+                      setIsGeneratingSummary(true);
+                      try {
+                        const summary = await invoke<string>('ai_summarize_tafsir', { 
+                          rawText: rawTafsir,
+                          language: store.customization.translationLanguage
+                        });
+                        setAiSummary(summary);
+                      } catch (e) {
+                        alert(`Failed to summarize: ${e}`);
+                      } finally {
+                        setIsGeneratingSummary(false);
+                      }
+                    }}
+                    disabled={isGeneratingSummary || !rawTafsir}
+                    className="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded text-white text-sm transition disabled:opacity-50"
+                  >
+                    {isGeneratingSummary ? 'Summarizing...' : '2. Generate AI Summary'}
+                  </button>
+                  
+                  {aiSummary && (
+                    <>
+                      <textarea
+                        value={aiSummary}
+                        onChange={(e) => setAiSummary(e.target.value)}
+                        className="w-full p-2 bg-background border border-input rounded text-foreground text-sm"
+                        rows={3}
+                      />
+                      <button 
+                        onClick={() => {
+                          const srcName = tafsirSourceId === '169' ? 'Ibn Kathir' : 'Tafsir';
+                          store.insertTafsirSlide(activeSlide.id, aiSummary, srcName);
+                          setAiSummary('');
+                          setRawTafsir('');
+                        }}
+                        className="w-full bg-primary hover:bg-primary/90 py-2 rounded text-primary-foreground text-sm transition"
+                      >
+                        ➕ Insert as Tafsir Slide
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                <div className="border-t border-border pt-4 mt-2">
+                  <h4 className="text-xs font-semibold mb-2">AI Media for Current Slide</h4>
+                  <div className="space-y-2">
+                    <button 
+                      onClick={async () => {
+                        const verse = store.verses[activeSlide.verseIndex];
+                        const contextText = activeSlide.type === 'tafsir' 
+                          ? activeSlide.tafsirText 
+                          : (verse?.translation_en || verse?.translation || '');
+                        
+                        if (!contextText) { alert('No text available for this slide'); return; }
+                        
+                        setIsGeneratingImage(true);
+                        try {
+                          const imgPath = await invoke<string>('ai_generate_image', { contextText });
+                          store.updateSlideCustomBg(activeSlide.id, imgPath);
+                        } catch (e) {
+                          alert(`Image gen failed: ${e}`);
+                        } finally {
+                          setIsGeneratingImage(false);
+                        }
+                      }}
+                      disabled={isGeneratingImage}
+                      className="w-full bg-purple-600 hover:bg-purple-700 py-2 rounded text-white text-sm transition disabled:opacity-50"
+                    >
+                      {isGeneratingImage ? 'Generating...' : '🖼️ Generate AI Background'}
+                    </button>
+                    
+                    {activeSlide.type === 'tafsir' && (
+                      <button 
+                        onClick={async () => {
+                          if (!activeSlide.tafsirText) return;
+                          setIsGeneratingAudio(true);
+                          try {
+                            const audioPath = await invoke<string>('ai_generate_audio', { text: activeSlide.tafsirText });
+                            store.updateSlideAudio(activeSlide.id, audioPath);
+                          } catch (e) {
+                            alert(`Audio gen failed: ${e}`);
+                          } finally {
+                            setIsGeneratingAudio(false);
+                          }
+                        }}
+                        disabled={isGeneratingAudio}
+                        className="w-full bg-teal-600 hover:bg-teal-700 py-2 rounded text-white text-sm transition disabled:opacity-50"
+                      >
+                        {isGeneratingAudio ? 'Generating...' : '🔊 Generate AI Voiceover'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+          )}
         </div>
       </div>
 
@@ -931,8 +1176,7 @@ export const Editor: React.FC = () => {
             </button>
           </div>
         </div>
-        
-        <div className="flex-1 flex justify-center items-center bg-black rounded-lg overflow-hidden border border-border p-4">
+        <div className="flex-1 flex bg-black rounded-lg overflow-hidden border border-border p-4">
           <PreviewCanvas ref={previewRef} />
         </div>
       </div>

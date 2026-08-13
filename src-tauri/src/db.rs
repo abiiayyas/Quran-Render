@@ -37,5 +37,45 @@ pub fn init_db(app: &mut App) -> Result<Connection> {
         [],
     )?;
 
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS tafsir_cache (
+            surah INTEGER,
+            ayah INTEGER,
+            tafsir_id INTEGER,
+            raw_text TEXT NOT NULL,
+            PRIMARY KEY (surah, ayah, tafsir_id)
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS ai_cache (
+            cache_key TEXT PRIMARY KEY,
+            result_text TEXT NOT NULL,
+            provider TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS ai_image_cache (
+            cache_key TEXT PRIMARY KEY,
+            image_path TEXT NOT NULL,
+            prompt_used TEXT,
+            provider TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )",
+        [],
+    )?;
+
     Ok(conn)
 }

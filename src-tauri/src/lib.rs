@@ -1,6 +1,7 @@
 mod db;
 mod commands;
 mod render;
+pub mod ai;
 
 use tauri::Manager;
 
@@ -32,7 +33,15 @@ pub fn run() {
             commands::save_quran_ayah,
             commands::fetch_quran_verses,
             commands::download_audio,
-            render::enqueue_render
+            commands::get_audio_cache_size,
+            commands::clear_audio_cache,
+            commands::save_app_setting,
+            commands::get_app_setting,
+            render::enqueue_render,
+            ai::fetch_tafsir,
+            ai::ai_summarize_tafsir,
+            ai::ai_generate_image,
+            ai::ai_generate_audio
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

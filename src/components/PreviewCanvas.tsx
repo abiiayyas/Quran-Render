@@ -7,7 +7,12 @@ export interface PreviewCanvasHandle extends HTMLDivElement {
   pausePreview: () => void;
 }
 
-export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
+export interface PreviewCanvasProps {
+  overrideSlideId?: string;
+  isOffscreenRender?: boolean;
+}
+
+export const PreviewCanvas = forwardRef<PreviewCanvasHandle, PreviewCanvasProps>(({ overrideSlideId, isOffscreenRender }, ref) => {
   const { verses, slides, activeSlideId, bgPath, audioPath, isExporting, selectedTemplate } = useAppStore();
   const customization = useAppStore(state => state.customization);
   
@@ -15,12 +20,13 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.3);
+  const [scale, setScale] = useState(isOffscreenRender ? 1 : 0.3);
 
   const baseW = customization.videoOrientation === 'landscape' ? 1920 : 1080;
   const baseH = customization.videoOrientation === 'landscape' ? 1080 : 1920;
 
   useEffect(() => {
+    if (isOffscreenRender) return;
     if (!wrapperRef.current) return;
     const observer = new ResizeObserver((entries) => {
       for (let entry of entries) {
@@ -32,7 +38,7 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
     });
     observer.observe(wrapperRef.current);
     return () => observer.disconnect();
-  }, [baseW, baseH]);
+  }, [baseW, baseH, isOffscreenRender]);
 
   // Expose methods to parent
   useImperativeHandle(ref, () => {
@@ -79,7 +85,8 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle>((_, ref) => {
     return el;
   });
   
-  const activeSlide = slides.find(s => s.id === activeSlideId) || slides[0];
+  const activeSlideIdToUse = overrideSlideId || activeSlideId;
+  const activeSlide = slides.find(s => s.id === activeSlideIdToUse) || slides[0];
   const verse = activeSlide ? verses[activeSlide.verseIndex] : null;
 
   const displayWords = verse && verse.words ? verse.words.slice(activeSlide.wordStartIndex, activeSlide.wordEndIndex) : [];

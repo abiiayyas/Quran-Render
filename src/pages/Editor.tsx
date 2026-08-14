@@ -1,7 +1,7 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { useAppStore } from '../store';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { writeFile, readFile } from '@tauri-apps/plugin-fs';
+import { writeFile } from '@tauri-apps/plugin-fs';
 import { toPng } from 'html-to-image';
 import { getFontEmbedCSS } from '../utils/fontEmbed';
 import { PreviewCanvas, PreviewCanvasHandle } from '../components/PreviewCanvas';
@@ -39,27 +39,7 @@ export const Editor: React.FC = () => {
   const [thumbnailTitle, setThumbnailTitle] = useState('Surah Al-Baqarah');
   const [thumbnailSubtitle, setThumbnailSubtitle] = useState('Mishary Rashid Alafasy');
   const [generatingThumb, setGeneratingThumb] = useState(false);
-  const [thumbnailBgDataUrl, setThumbnailBgDataUrl] = useState('');
-
-  useEffect(() => {
-    if (store.customization.thumbnailPath) {
-      readFile(store.customization.thumbnailPath).then(bytes => {
-        const ext = store.customization.thumbnailPath!.split('.').pop()?.toLowerCase();
-        const mime = ext === 'png' ? 'image/png' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/webp';
-        const blob = new Blob([bytes], { type: mime });
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setThumbnailBgDataUrl(reader.result as string);
-        };
-        reader.readAsDataURL(blob);
-      }).catch(e => {
-        console.error("Failed to load thumbnail background", e);
-        setThumbnailBgDataUrl('');
-      });
-    } else {
-      setThumbnailBgDataUrl('');
-    }
-  }, [store.customization.thumbnailPath]);
+  const bgIsVideo = !!(store.bgPath && store.bgPath.toLowerCase().match(/\.(mp4|mov|webm)$/));
 
   const handleGenerateThumbnailText = async () => {
     const el = document.getElementById('thumbnail-generator');
@@ -256,8 +236,9 @@ export const Editor: React.FC = () => {
           const isFirstSlideOfFirstVerse = isFirstVerse && slideIdx === 0;
           const isLastSlideOfLastVerse = isLastVerse && slideIdx === quranSlides.length - 1 && tafsirSlides.length === 0;
 
-          store.setActiveSlideId(slide.id);
-          await new Promise(res => setTimeout(res, 200)); 
+          const slideEl = document.getElementById(`render-slide-${slide.id}`);
+          const targetEl = slideEl?.querySelector('.preview-canvas-container') as HTMLElement;
+          if (!targetEl) throw new Error("Render element not found");
           
           if (store.customization.karaokeMode && verse.words && verse.words.length > 0) {
             const displayWords = verse.words.slice(slide.wordStartIndex, slide.wordEndIndex);
@@ -265,7 +246,7 @@ export const Editor: React.FC = () => {
             store.updateCustomization({ highlightWordIndex: null });
             await new Promise(res => setTimeout(res, 50));
             
-            const baseFrameUrl = await toPng(el, {
+            const baseFrameUrl = await toPng(targetEl, {
               width: baseW, height: baseH, cacheBust: true, backgroundColor: 'transparent',
               style: { transform: 'scale(1)', transformOrigin: 'top left', background: 'transparent' },
               pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer',
@@ -300,7 +281,7 @@ export const Editor: React.FC = () => {
               store.updateCustomization({ highlightWordIndex: actualWordIndex });
               await new Promise(res => setTimeout(res, 50));
               
-              const frameDataUrl = await toPng(el, {
+              const frameDataUrl = await toPng(targetEl, {
                 width: baseW, height: baseH, cacheBust: true, backgroundColor: 'transparent',
                 style: { transform: 'scale(1)', transformOrigin: 'top left', background: 'transparent' },
                 pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer',
@@ -333,7 +314,7 @@ export const Editor: React.FC = () => {
              const nextSlideWord = verse.words ? verse.words[slide.wordEndIndex] : null;
              const slideEndMs = nextSlideWord?.start_ms ?? (verse.audioDurationMs || 5000);
              
-             const frameDataUrl = await toPng(el, {
+             const frameDataUrl = await toPng(targetEl, {
                 width: baseW, height: baseH, cacheBust: true, backgroundColor: 'transparent',
                 style: { transform: 'scale(1)', transformOrigin: 'top left', background: 'transparent' },
                 pixelRatio: 1, filter: (node) => node.id !== 'preview-bg-layer',
@@ -356,8 +337,9 @@ export const Editor: React.FC = () => {
         // 2. Process Tafsir Slides
         for (let tIdx = 0; tIdx < tafsirSlides.length; tIdx++) {
            const tSlide = tafsirSlides[tIdx];
-           store.setActiveSlideId(tSlide.id);
-           await new Promise(res => setTimeout(res, 200)); 
+           const tSlideEl = document.getElementById(`render-slide-${tSlide.id}`);
+           const targetEl = tSlideEl?.querySelector('.preview-canvas-container') as HTMLElement;
+           if (!targetEl) throw new Error("Render element not found");
            
            let tAudioDurationMs = (tSlide.slideDuration || 5) * 1000;
            if (tSlide.audioPath) {
@@ -372,7 +354,7 @@ export const Editor: React.FC = () => {
               audioPaths.push(`SILENCE_SECONDS:${tSlide.slideDuration || 5}`);
            }
            
-           const frameDataUrl = await toPng(el, {
+           const frameDataUrl = await toPng(targetEl, {
               width: baseW, height: baseH, cacheBust: true, backgroundColor: 'transparent',
               style: { transform: 'scale(1)', transformOrigin: 'top left', background: 'transparent' },
               pixelRatio: 1, 
@@ -1189,11 +1171,20 @@ export const Editor: React.FC = () => {
         </div>
       </div>
 
+      {/* Hidden Slide Render Container */}
+      <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', zIndex: -10, pointerEvents: 'none', opacity: 0 }}>
+        {store.slides.map(slide => (
+           <div id={`render-slide-${slide.id}`} key={`render-${slide.id}`} style={{ width: store.customization.videoOrientation === 'landscape' ? 1920 : 1080, height: store.customization.videoOrientation === 'landscape' ? 1080 : 1920 }}>
+             <PreviewCanvas overrideSlideId={slide.id} isOffscreenRender={true} />
+           </div>
+        ))}
+      </div>
+
       {/* Hidden Thumbnail Generator Container */}
       <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', zIndex: -10 }}>
         <div id="thumbnail-generator" className="relative flex flex-col items-center justify-center gap-6 overflow-hidden" style={{ width: '1080px', height: '1920px', background: 'radial-gradient(circle at center, #1a1a1a 0%, #000000 100%)' }}>
-           {thumbnailBgDataUrl && (
-             <img src={thumbnailBgDataUrl} className="absolute inset-0 w-full h-full object-cover z-0" />
+           {store.bgPath && !bgIsVideo && (
+             <img src={convertFileSrc(store.bgPath)} className="absolute inset-0 w-full h-full object-cover z-0" />
            )}
            <div className="z-10 flex flex-col items-center gap-6 px-16 py-12 bg-black/50 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl">
              <h1 className="text-white font-bold text-center" style={{ fontSize: '100px', lineHeight: '1.2', textShadow: '0 4px 24px rgba(0,0,0,0.5)' }}>{thumbnailTitle}</h1>

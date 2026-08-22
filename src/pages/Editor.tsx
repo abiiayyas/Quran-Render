@@ -40,6 +40,14 @@ export const Editor: React.FC = () => {
   const [thumbnailSubtitle, setThumbnailSubtitle] = useState('Mishary Rashid Alafasy');
   const [generatingThumb, setGeneratingThumb] = useState(false);
   const bgIsVideo = !!(store.bgPath && store.bgPath.toLowerCase().match(/\.(mp4|mov|webm)$/));
+  // Background for the generated thumbnail: use the uploaded thumbnail image
+  // if provided; otherwise fall back to the project background when it's a
+  // static image (a video background can't be captured as a thumbnail).
+  const thumbnailBgPath = (() => {
+    if (store.customization.thumbnailPath) return store.customization.thumbnailPath;
+    if (store.bgPath && !bgIsVideo) return store.bgPath;
+    return null;
+  })();
 
   const handleGenerateThumbnailText = async () => {
     const el = document.getElementById('thumbnail-generator');
@@ -192,7 +200,6 @@ export const Editor: React.FC = () => {
       const baseW = store.customization.videoOrientation === 'landscape' ? 1920 : 1080;
       const baseH = store.customization.videoOrientation === 'landscape' ? 1080 : 1920;
       // We need to render the canvas at baseW x baseH without scaling for the export.
-      const el = previewRef.current;
 
       // Pre-load font embed CSS so Arabic fonts (LPMQ, Uthmanic) render
       // correctly in the exported PNG frames.
@@ -1183,8 +1190,8 @@ export const Editor: React.FC = () => {
       {/* Hidden Thumbnail Generator Container */}
       <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', zIndex: -10 }}>
         <div id="thumbnail-generator" className="relative flex flex-col items-center justify-center gap-6 overflow-hidden" style={{ width: '1080px', height: '1920px', background: 'radial-gradient(circle at center, #1a1a1a 0%, #000000 100%)' }}>
-           {store.bgPath && !bgIsVideo && (
-             <img src={convertFileSrc(store.bgPath)} className="absolute inset-0 w-full h-full object-cover z-0" />
+           {thumbnailBgPath && (
+             <img src={convertFileSrc(thumbnailBgPath)} className="absolute inset-0 w-full h-full object-cover z-0" />
            )}
            <div className="z-10 flex flex-col items-center gap-6 px-16 py-12 bg-black/50 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl">
              <h1 className="text-white font-bold text-center" style={{ fontSize: '100px', lineHeight: '1.2', textShadow: '0 4px 24px rgba(0,0,0,0.5)' }}>{thumbnailTitle}</h1>

@@ -129,6 +129,16 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle, PreviewCanvasProps>
 
   const isFading = customization.animationStyle === 'fade' && !isExporting;
 
+  // During export the render loop toggles `highlightWordIndex` thousands of
+  // times to capture per-word karaoke frames. That global state also drives the
+  // on-screen preview and would flash through every word, so ignore it for the
+  // visible (non-offscreen) canvas — keep the preview on a stable frame while
+  // the background render job runs. The offscreen canvases being captured are
+  // the ones that actually need the highlights.
+  const effectiveHighlightWordIndex = (!isOffscreenRender && isExporting)
+    ? null
+    : customization.highlightWordIndex;
+
   return (
     <div className="flex-1 w-full h-full min-h-0 relative overflow-hidden bg-black">
       <div ref={wrapperRef} className="absolute inset-0 flex justify-center items-center">
@@ -220,7 +230,7 @@ export const PreviewCanvas = forwardRef<PreviewCanvasHandle, PreviewCanvasProps>
               {customization.karaokeMode && displayWords.length > 0 ? (
                 displayWords.map((word, index) => {
                   const globalIndex = activeSlide ? activeSlide.wordStartIndex + index : index;
-                  const isHighlighted = customization.highlightWordIndex === globalIndex;
+                  const isHighlighted = effectiveHighlightWordIndex === globalIndex;
                   let color = customization.arabicColor;
                   let backgroundColor = 'transparent';
                   let padding = '0';
